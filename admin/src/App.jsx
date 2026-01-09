@@ -1,35 +1,123 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { Navigate, Routes, Route } from "react-router";
+import { useEffect, useState } from "react";
+import { supabase } from "./lib/supabase";
+import DashboardLayout from "./layouts/DashBoardLayout";
+import Dashboard from "./pages/Dashboard";
+import Users from "./pages/Users";
+import Finances from "./pages/Finances";
+import Moderations from "./pages/Moderations";
+import Health from "./pages/Health";
+import Settings from "./pages/Settings";
+import Login from "./pages/Login";
+import { Toaster } from "react-hot-toast";
+
+function ProtectedRoute({ children, session }) {
+  if (session === undefined)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-base-300 shadow-xl">
+        <span className="loading loading-dots loading-lg text-primary"></span>
+      </div>
+    );
+  if (!session) return <Navigate to="/login" replace />;
+
+  // STRICT SECURITY: Final check for admin email
+  if (session.user?.email !== import.meta.env.VITE_ADMIN_EMAIL) {
+    // Manually clear storage to prevent 403 Network Error from api logout
+    localStorage.clear();
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [session, setSession] = useState(undefined);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.toLowerCase();
+      const userEmail = session?.user?.email?.toLowerCase();
+
+      if (session && userEmail !== adminEmail) {
+        localStorage.clear();
+        setSession(null);
+      } else {
+        setSession(session);
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.toLowerCase();
+      const userEmail = session?.user?.email?.toLowerCase();
+
+      if (session && userEmail !== adminEmail) {
+        localStorage.clear();
+        setSession(null);
+      } else {
+        setSession(session);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            session &&
+            session.user?.email === import.meta.env.VITE_ADMIN_EMAIL ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <Login />
+            )
+          }
+        />
+
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute session={session}>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="users" element={<Users />} />
+          <Route path="finances" element={<Finances />} />
+          <Route path="moderations" element={<Moderations />} />
+          <Route path="health" element={<Health />} />
+          <Route path="settings" element={<Settings />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: "#000",
+            color: "#fff",
+            borderRadius: "16px",
+            fontSize: "12px",
+            fontWeight: "bold",
+            padding: "12px 24px",
+          },
+          success: {
+            iconTheme: {
+              primary: "#FF4D00",
+              secondary: "#fff",
+            },
+          },
+        }}
+      />
     </>
-  )
+  );
 }
 
-export default App
+export default App;

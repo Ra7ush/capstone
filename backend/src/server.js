@@ -1,10 +1,23 @@
 import express from "express";
 import path from "path";
+import cors from "cors";
 import { ENV } from "./config/env.js";
+import adminRouter from "./routes/admin.route.js";
 
 const __dirname = path.resolve(); // this will resolve the path of the current directory which is the root directory
 
 const app = express();
+
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
+app.use(express.json());
+
+//Routes
+app.use("/api/admin", adminRouter);
 
 app.get("/api/commes", (req, res) => {
   res.status(200).json({
