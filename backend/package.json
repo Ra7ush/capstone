@@ -4,13 +4,16 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon src/server.js"
+    "start": "nodemon src/server.js",
+    "seed": "node src/seed_payouts.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  " type": "module",
+  "type": "module",
   "dependencies": {
+    "@supabase/supabase-js": "^2.89.0",
+    "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1"
   }
