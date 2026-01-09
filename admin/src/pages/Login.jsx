@@ -46,14 +46,19 @@ function Login() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: window.location.origin,
+          redirectTo: `${window.location.origin}/dashboard`,
           queryParams: {
             access_type: "offline",
             prompt: "consent",
+            // Restrict to admin email domain hint for better UX
+            login_hint: import.meta.env.VITE_ADMIN_EMAIL,
           },
         },
       });
       if (error) throw error;
+      // Note: Post-OAuth admin validation is handled by App.jsx's onAuthStateChange
+      // which checks if user email matches VITE_ADMIN_EMAIL and clears session if not.
+      // Additionally, all backend API endpoints are protected by adminAuth middleware.
     } catch (err) {
       setError(err.message);
     }

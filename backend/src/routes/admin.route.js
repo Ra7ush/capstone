@@ -1,4 +1,4 @@
-import Router from "express";
+import { Router } from "express";
 import {
   getAllUsers,
   updateUser,
@@ -14,11 +14,15 @@ import {
   // deleteModeration,
   login,
 } from "../controllers/admin.controller.js";
+import { adminAuth } from "../middlewares/adminAuth.js";
 
 const router = Router();
 
-//Auth
+//Auth (no middleware - login endpoint)
 router.post("/login", login);
+
+// All routes below require admin authentication
+router.use(adminAuth);
 
 //dashboard
 router.get("/dashboard/stats", getDashboardStats);

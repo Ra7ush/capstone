@@ -88,10 +88,19 @@ export default function Signup() {
       if (data?.url) {
         const result = await openAuthSessionAsync(data.url, redirectUrl);
         if (result.type === "success" && result.url) {
-          // Parse the session from the URL
-          const { error } = await supabase.auth.getSession();
-          if (error) throw error;
-          router.replace("/");
+          // Parse tokens from the callback URL
+          const url = new URL(result.url);
+          const params = new URLSearchParams(url.hash.substring(1));
+          const accessToken = params.get("access_token");
+          const refreshToken = params.get("refresh_token");
+          if (accessToken && refreshToken) {
+            const { error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (error) throw error;
+            router.replace("/");
+          }
         }
       }
     } catch (error: any) {

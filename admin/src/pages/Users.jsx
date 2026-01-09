@@ -9,11 +9,11 @@ import {
   ShieldAlert,
   Search,
   Filter,
-  UserPlus,
   X,
   UserCircle,
   BadgeCheck,
   Zap,
+  Users as UsersIcon,
 } from "lucide-react";
 import PagerLoader from "../components/PagerLoader";
 import { useRealtimeSync } from "../hooks/useRealtimeSync";
@@ -436,7 +436,7 @@ function Users() {
                   <td colSpan={6} className="py-20 text-center">
                     <div className="flex flex-col items-center space-y-3">
                       <div className="bg-gray-50 p-4 rounded-full text-gray-300">
-                        <Users size={32} />
+                        <UsersIcon size={32} />
                       </div>
                       <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest">
                         No matching records found in ecosystem

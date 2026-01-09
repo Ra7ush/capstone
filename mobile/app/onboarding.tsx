@@ -51,7 +51,7 @@ export default function Onboarding() {
       }
     };
     getUser();
-  }, []);
+  }, [router]);
 
   const handleComplete = async () => {
     if (!username.trim()) {
