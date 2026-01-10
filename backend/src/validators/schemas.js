@@ -74,6 +74,20 @@ export const dashboardQuerySchema = z.object({
     .default("1Y"),
 });
 
+//============= Verification Schemas==========
+
+export const updateVerificationStatusSchema = z.object({
+  status: z.enum(["approved", "rejected"], {
+    errorMap: () => ({
+      message: "Status must be: approved or rejected",
+    }),
+  }),
+  admin_notes: z
+    .string()
+    .max(1000, "Admin notes too long (max 1000 characters)")
+    .optional(),
+});
+
 // ============ Validation Helper ============
 
 /**

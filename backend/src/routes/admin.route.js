@@ -26,6 +26,7 @@ import {
   updateUserSchema,
   updateModerationSchema,
   dashboardQuerySchema,
+  updateVerificationStatusSchema,
 } from "../validators/schemas.js";
 
 const router = Router();
@@ -79,7 +80,14 @@ router.put(
 
 //creator verification
 router.get("/verifications/pending", getPendingRequests);
-router.put("/verifications/:id/status", updateRequestStatus);
+router.put(
+  "/verifications/:id/status",
+  validateRequest({
+    params: idParamSchema,
+    body: updateVerificationStatusSchema,
+  }),
+  updateRequestStatus
+);
 // Note: Delete endpoint removed - we keep reports for audit trail even after banning
 
 export default router;

@@ -57,8 +57,8 @@ app.use(generalLimiter);
 
 // ============ Routes ============
 
-// Apply stricter rate limiting to login endpoint
-app.use("/api/admin/login", authLimiter);
+// Apply stricter rate limiting to auth verification endpoint
+app.use("/api/admin/verify", authLimiter);
 
 // Admin routes
 app.use("/api/admin", adminRouter);

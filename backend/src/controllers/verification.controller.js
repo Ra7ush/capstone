@@ -19,14 +19,12 @@ export async function submitVerification(req, res) {
     }
 
     // 2. Check if there's already a pending request
-    const { data: existingRequest } = await supabase
+    const { data: existingRequests } = await supabase
       .from("creator_verification_requests")
       .select("status")
       .eq("user_id", userId)
-      .eq("status", "pending")
-      .single();
-
-    if (existingRequest) {
+      .eq("status", "pending");
+    if (existingRequests && existingRequests.length > 0) {
       return res.status(400).json({
         success: false,
         error: "You already have a pending verification request.",

@@ -110,6 +110,7 @@ function Verifications() {
                   <img
                     src={req.id_front_url}
                     className="w-full h-full object-cover"
+                    alt={`ID front for ${req.full_legal_name}`}
                   />
                 </div>
               </div>
@@ -121,6 +122,7 @@ function Verifications() {
                   <img
                     src={req.selfie_url}
                     className="w-full h-full object-cover"
+                    alt={`Selfie verification for ${req.full_legal_name}`}
                   />
                 </div>
               </div>
@@ -228,6 +230,7 @@ function Verifications() {
                       <img
                         src={selectedRequest.selfie_url}
                         className="w-full h-full object-cover"
+                        alt={`Selfie of ${selectedRequest.full_legal_name}`}
                       />
                     </div>
                   </div>
@@ -243,6 +246,7 @@ function Verifications() {
                         <img
                           src={selectedRequest.id_front_url}
                           className="w-full h-full object-cover"
+                          alt={`ID front side for ${selectedRequest.full_legal_name}`}
                         />
                         <div className="absolute top-4 left-4 bg-black/80 px-4 py-1.5 rounded-full text-[8px] font-black text-white uppercase tracking-widest">
                           Front Side
@@ -253,6 +257,7 @@ function Verifications() {
                           <img
                             src={selectedRequest.id_back_url}
                             className="w-full h-full object-cover"
+                            alt={`ID back side for ${selectedRequest.full_legal_name}`}
                           />
                           <div className="absolute top-4 left-4 bg-black/80 px-4 py-1.5 rounded-full text-[8px] font-black text-white uppercase tracking-widest">
                             Back Side

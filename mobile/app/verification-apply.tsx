@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   ScrollView,
   Image,
@@ -160,6 +161,51 @@ export default function VerificationApply() {
 
         {step === 1 && (
           <View className="space-y-6">
+            <View className="bg-white/5 p-5 rounded-3xl border border-white/10 space-y-4">
+              <View>
+                <Text className="text-white font-bold mb-2">Legal Name</Text>
+                <View className="h-14 bg-white/10 rounded-2xl px-4 border border-white/10 justify-center">
+                  <TextInput
+                    className="text-white font-bold text-base"
+                    placeholder="As shown on your ID"
+                    placeholderTextColor="#6B7280"
+                    value={fullLegalName}
+                    onChangeText={setFullLegalName}
+                  />
+                </View>
+              </View>
+
+              <View>
+                <Text className="text-white font-bold mb-2">
+                  ID Document Type
+                </Text>
+                <View className="flex-row gap-2">
+                  {[
+                    { id: "national_id", label: "National ID" },
+                    { id: "passport", label: "Passport" },
+                  ].map((type) => (
+                    <TouchableOpacity
+                      key={type.id}
+                      onPress={() => setIdType(type.id)}
+                      className={`flex-1 h-12 rounded-xl items-center justify-center border ${
+                        idType === type.id
+                          ? "bg-[#FF4D00] border-[#FF4D00]"
+                          : "bg-white/5 border-white/10"
+                      }`}
+                    >
+                      <Text
+                        className={`font-bold text-xs ${
+                          idType === type.id ? "text-white" : "text-gray-400"
+                        }`}
+                      >
+                        {type.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+
             <View className="bg-white/5 p-4 rounded-3xl border border-white/10">
               <Text className="text-white font-bold mb-4">
                 Step 1: ID Front
@@ -201,11 +247,18 @@ export default function VerificationApply() {
             </View>
 
             <TouchableOpacity
-              onPress={() => setStep(2)}
-              disabled={!images.front}
-              className={`h-16 rounded-2xl items-center justify-center ${
-                images.front ? "bg-[#FF4D00]" : "bg-gray-800"
-              }`}
+              onPress={() => {
+                if (!fullLegalName.trim()) {
+                  Alert.alert("Error", "Please enter your full legal name.");
+                  return;
+                }
+                if (!images.front) {
+                  Alert.alert("Error", "Please upload the front of your ID.");
+                  return;
+                }
+                setStep(2);
+              }}
+              className="h-16 rounded-2xl bg-[#FF4D00] items-center justify-center shadow-lg shadow-[#FF4D00]/20"
             >
               <Text className="text-white font-black uppercase tracking-widest">
                 Continue
