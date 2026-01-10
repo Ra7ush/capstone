@@ -40,7 +40,7 @@ export default function Index() {
 
         <View className="h-8" />
 
-        <Link href="/auth/signup" asChild>
+        <Link href="/(auth)/signup" asChild>
           <TouchableOpacity className="bg-black px-8 py-4 rounded-2xl shadow-lg active:scale-95 transition-all">
             <Text className="text-white font-black uppercase tracking-[0.2em] text-xs">
               Get Started
@@ -48,7 +48,7 @@ export default function Index() {
           </TouchableOpacity>
         </Link>
 
-        <Link href="/auth/login" asChild>
+        <Link href="/(auth)/login" asChild>
           <TouchableOpacity className="mt-4 px-8 py-3">
             <Text className="text-gray-500 font-bold text-sm">
               Already have an account?{" "}

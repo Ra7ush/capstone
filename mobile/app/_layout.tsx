@@ -1,9 +1,13 @@
 import { useEffect, useRef } from "react";
+import { LogBox } from "react-native";
 import { Stack, useRouter, useSegments, SplashScreen } from "expo-router";
 import "../global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthState } from "../lib/useAuthState";
 import LoadingScreen from "../components/LoadingScreen";
+
+// Suppress SafeAreaView deprecation warning from dependencies
+LogBox.ignoreLogs(["SafeAreaView has been deprecated"]);
 
 // Keep splash screen visible while we check auth
 SplashScreen.preventAutoHideAsync();
@@ -31,7 +35,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     SplashScreen.hideAsync();
 
     const currentRoute = segments.join("/");
-    const inAuthGroup = segments[0] === "auth";
+    const inAuthGroup = segments[0] === "(auth)";
     const inOnboarding = segments[0] === "onboarding";
     const inHomeGroup = segments[0] === "(home)";
 
@@ -46,13 +50,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!session) {
       // Not logged in → should be in auth
       if (!inAuthGroup) {
-        router.replace("/auth/signup");
+        router.replace("/(auth)/signup");
       }
     } else if (!isEmailVerified) {
       // Logged in but not verified → should be on verify page
-      if (currentRoute !== "auth/verify") {
+      if (currentRoute !== "(auth)/verify") {
         router.replace({
-          pathname: "/auth/verify",
+          pathname: "/(auth)/verify",
           params: { email: session.user.email },
         });
       }

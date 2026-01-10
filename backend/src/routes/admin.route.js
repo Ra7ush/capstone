@@ -12,38 +12,74 @@ import {
   getModerations,
   updateModeration,
   // deleteModeration,
-  login,
+  verifyAdmin,
 } from "../controllers/admin.controller.js";
+import {
+  getPendingRequests,
+  updateRequestStatus,
+} from "../controllers/verification.controller.js";
 import { adminAuth } from "../middlewares/adminAuth.js";
+import {
+  validateRequest,
+  loginSchema,
+  idParamSchema,
+  updateUserSchema,
+  updateModerationSchema,
+  dashboardQuerySchema,
+} from "../validators/schemas.js";
 
 const router = Router();
 
-//Auth (no middleware - login endpoint)
-router.post("/login", login);
+//Auth Verification
+router.get("/verify", adminAuth, verifyAdmin);
 
 // All routes below require admin authentication
 router.use(adminAuth);
 
 //dashboard
-router.get("/dashboard/stats", getDashboardStats);
+router.get(
+  "/dashboard/stats",
+  validateRequest({ query: dashboardQuerySchema }),
+  getDashboardStats
+);
 
 //system
 router.get("/system/health", getSystemHealth);
 
 //users
 router.get("/users", getAllUsers);
-router.put("/users/:id", updateUser);
-router.delete("/users/:id", deleteUser);
+router.put(
+  "/users/:id",
+  validateRequest({ params: idParamSchema, body: updateUserSchema }),
+  updateUser
+);
+router.delete(
+  "/users/:id",
+  validateRequest({ params: idParamSchema }),
+  deleteUser
+);
 
 //finances
 router.get("/payouts", getFinancesStatus);
 router.get("/payouts/history", getTransactionsHistory);
 router.post("/payouts/process-all", processAllPayouts);
-router.post("/payouts/process-single/:id", processSinglePayout);
+router.post(
+  "/payouts/process-single/:id",
+  validateRequest({ params: idParamSchema }),
+  processSinglePayout
+);
 
 //moderations
 router.get("/moderations", getModerations);
-router.put("/moderations/:id", updateModeration);
+router.put(
+  "/moderations/:id",
+  validateRequest({ params: idParamSchema, body: updateModerationSchema }),
+  updateModeration
+);
+
+//creator verification
+router.get("/verifications/pending", getPendingRequests);
+router.put("/verifications/:id/status", updateRequestStatus);
 // Note: Delete endpoint removed - we keep reports for audit trail even after banning
 
 export default router;

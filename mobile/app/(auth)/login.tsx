@@ -198,7 +198,7 @@ export default function Login() {
           <Text className="text-gray-400 font-medium text-xs">
             Don't have an account?
           </Text>
-          <Link href="/auth/signup" asChild>
+          <Link href="/(auth)/signup" asChild>
             <TouchableOpacity>
               <Text className="text-black font-black text-xs">Sign Up</Text>
             </TouchableOpacity>

@@ -2,39 +2,19 @@ import supabase from "../config/db.js";
 import { ENV } from "../config/env.js";
 import os from "os";
 
-export async function login(req, res) {
+export async function verifyAdmin(req, res) {
   try {
-    const { email, password } = req.body;
-
-    // Strict Admin Email Restriction
-    if (email !== ENV.ADMIN_EMAIL) {
-      return res.status(403).json({
-        success: false,
-        error:
-          "Forbidden: You do not have permission to access the admin portal.",
-      });
-    }
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    // If the request reaches here, it has passed through adminAuth middleware
+    res.status(200).json({
+      success: true,
+      message: "Admin verified successfully",
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        role: req.user.role || "admin",
+      },
     });
-
-    if (error) {
-      if (error.status === 400 || error.code === "invalid_credentials") {
-        return res
-          .status(401)
-          .json({ success: false, error: "Invalid email or password" });
-      }
-      throw error;
-    }
-
-    // Reset the global client to service role mode
-    await supabase.auth.signOut();
-
-    res.status(200).json({ success: true, data });
   } catch (error) {
-    console.error("Login error:", error);
     res.status(500).json({
       success: false,
       error: error.message || "An internal error occurred",
@@ -94,12 +74,24 @@ export async function getSystemHealth(req, res) {
 
 export async function getDashboardStats(req, res) {
   try {
-    const { range } = req.query; // Extract range from query params
+    // Use validatedQuery if available (from validation middleware), fallback to query
+    const query = req.validatedQuery || req.query;
+    const { range } = query;
+    console.log("getDashboardStats called with range:", range || "1Y");
+
     const { data, error } = await supabase.rpc("get_dashboard_stats", {
       time_range: range || "1Y",
     });
 
-    if (error) throw error;
+    console.log("Supabase RPC response - data:", data, "error:", error);
+
+    if (error) {
+      console.error(
+        "Supabase RPC error details:",
+        JSON.stringify(error, null, 2)
+      );
+      throw error;
+    }
 
     res.status(200).json({
       success: true,
@@ -107,6 +99,7 @@ export async function getDashboardStats(req, res) {
     });
   } catch (error) {
     console.error("Error fetching dashboard stats:", error);
+    console.error("Error stack:", error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 }
@@ -135,17 +128,18 @@ export async function getAllUsers(req, res) {
     if (error) {
       throw error;
     }
-    res.status(200).json({ data });
+    res.status(200).json({ success: true, data });
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error });
+    res.status(500).json({ success: false, error: error.message });
   }
 }
 
 // TODO: we need implement the logig for the suspended users
 export async function updateUser(req, res) {
   try {
-    const { id } = req.params;
+    const params = req.validatedParams || req.params;
+    const { id } = params;
     const { status, verification_status } = req.body;
 
     const { data, error } = await supabase.rpc(
@@ -185,13 +179,14 @@ export async function updateUser(req, res) {
     res.status(200).json({ message: "User updated successfully", data });
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error });
+    res.status(500).json({ success: false, error: error.message });
   }
 }
 
 export async function deleteUser(req, res) {
   try {
-    const { id } = req.params;
+    const params = req.validatedParams || req.params;
+    const { id } = params;
     const { error } = await supabase.from("users").delete().eq("id", id);
 
     if (error) throw error;
@@ -199,7 +194,7 @@ export async function deleteUser(req, res) {
     res.status(200).json({ message: "User deleted successfully" });
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error });
+    res.status(500).json({ success: false, error: error.message });
   }
 }
 
@@ -208,10 +203,10 @@ export async function getFinancesStatus(req, res) {
     const { data, error } = await supabase.rpc("get_financial_stats");
     if (error) throw error;
 
-    res.status(200).json({ data });
+    res.status(200).json({ success: true, data });
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error });
+    res.status(500).json({ success: false, error: error.message });
   }
 }
 
@@ -281,7 +276,8 @@ export async function processAllPayouts(req, res) {
 
 export async function processSinglePayout(req, res) {
   try {
-    const { id } = req.params;
+    const params = req.validatedParams || req.params;
+    const { id } = params;
     const { data, error } = await supabase.rpc("process_single_payout", {
       p_id: id,
     });
@@ -359,7 +355,8 @@ export async function getModerations(req, res) {
 
 export async function updateModeration(req, res) {
   try {
-    const { id } = req.params;
+    const params = req.validatedParams || req.params;
+    const { id } = params;
     const { status, admin_notes, action } = req.body;
 
     // 1. Fetch Report & User ID
@@ -453,7 +450,8 @@ export async function updateModeration(req, res) {
 
 export async function deleteModeration(req, res) {
   try {
-    const { id } = req.params;
+    const params = req.validatedParams || req.params;
+    const { id } = params;
     const { error } = await supabase
       .from("moderation_reports")
       .delete()

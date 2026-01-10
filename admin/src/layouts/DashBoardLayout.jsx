@@ -12,6 +12,7 @@ import {
   Bell,
   ChevronRight,
   Menu,
+  ShieldCheck,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
@@ -61,6 +62,11 @@ function DashBoardLayout() {
           name: "Moderation",
           icon: <ShieldAlert size={20} />,
           path: "/moderations",
+        },
+        {
+          name: "Creator Identity",
+          icon: <ShieldCheck size={20} />,
+          path: "/verifications",
         },
       ],
     },

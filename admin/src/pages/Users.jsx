@@ -535,7 +535,6 @@ function Users() {
                     }
                     disabled={selectedUser?.role !== "creator"}
                   >
-                    <option value="none">UNVERIFIED</option>
                     <option value="pending">PENDING</option>
                     <option value="verified">VERIFIED</option>
                     <option value="rejected">REJECTED</option>

@@ -23,10 +23,12 @@ function Finances() {
   const queryClient = useQueryClient();
 
   // --- Real-Time Synchronization ---
-  // Listen to payouts table and invalidate both queries when changes occur
+  // Listen to payouts table for new/updated payouts
   useRealtimeSync("payouts", ["payout-history", "payout-stats"]);
-  // Listen to creators table for balance changes that affect both stats and history
+  // Listen to creators table for balance/earnings changes
   useRealtimeSync("creators", ["payout-stats", "payout-history"]);
+  // Listen to users table for new signups that might trigger creator entries
+  useRealtimeSync("users", ["payout-stats"]);
   // ---------------------------------
   const [confirmation, setConfirmation] = React.useState({
     isOpen: false,
@@ -43,6 +45,8 @@ function Finances() {
   } = useQuery({
     queryKey: ["payout-stats"],
     queryFn: payoutApi.getAllFinancialsStatus,
+    refetchInterval: 5000, // Poll every 5 seconds as backup for realtime
+    refetchIntervalInBackground: true,
   });
 
   const {
@@ -52,6 +56,8 @@ function Finances() {
   } = useQuery({
     queryKey: ["payout-history"],
     queryFn: payoutApi.getTransactionsHistory,
+    refetchInterval: 5000, // Poll every 5 seconds as backup for realtime
+    refetchIntervalInBackground: true,
   });
 
   const processAllPayoutsMutation = useMutation({
