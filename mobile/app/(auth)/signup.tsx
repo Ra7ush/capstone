@@ -57,7 +57,7 @@ export default function Signup() {
 
         // Navigate to OTP verification
         router.push({
-          pathname: "/auth/verify",
+          pathname: "/(auth)/verify",
           params: { email: formData.email },
         });
       }
@@ -239,7 +239,7 @@ export default function Signup() {
           <Text className="text-gray-400 font-medium text-xs">
             Already have an account?
           </Text>
-          <Link href="/auth/login" asChild>
+          <Link href="/(auth)/login" asChild>
             <TouchableOpacity>
               <Text className="text-black font-black text-xs">Log In</Text>
             </TouchableOpacity>

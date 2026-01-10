@@ -47,7 +47,7 @@ export default function Onboarding() {
         setEmail(user.email || null);
       } else {
         // No user, redirect to login
-        router.replace("/auth/login");
+        router.replace("/(auth)/login");
       }
     };
     getUser();
@@ -61,7 +61,7 @@ export default function Onboarding() {
 
     if (!userId || !email) {
       Alert.alert("Error", "User session not found. Please login again.");
-      router.replace("/auth/login");
+      router.replace("/(auth)/login");
       return;
     }
 
@@ -98,7 +98,7 @@ export default function Onboarding() {
           {
             user_id: userId,
             bio: bio.trim() || null,
-            verification_status: "pending",
+            verification_status: "unverified",
           },
           { onConflict: "user_id" }
         );
@@ -106,9 +106,19 @@ export default function Onboarding() {
         if (creatorError) throw creatorError;
       }
 
-      Alert.alert("Welcome!", "Your profile has been created successfully!", [
-        { text: "Let's Go!", onPress: () => router.replace("/(home)") },
-      ]);
+      Alert.alert(
+        "Profile Created!",
+        isCreator
+          ? "Next, you need to verify your identity to start sharing your work."
+          : "Your nexus profile is ready!",
+        [
+          {
+            text: isCreator ? "Start Verification" : "Let's Go!",
+            onPress: () =>
+              router.replace(isCreator ? "/verification-apply" : "/(home)"),
+          },
+        ]
+      );
     } catch (error: any) {
       console.error("Onboarding error:", error);
       Alert.alert("Setup Failed", error.message);

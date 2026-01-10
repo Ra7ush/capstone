@@ -19,21 +19,34 @@ export async function adminAuth(req, res, next) {
 
     const token = authHeader.split(" ")[1];
 
-    // Verify the JWT token with Supabase
+    // Verify the JWT token with Supabase Auth
     const {
       data: { user },
-      error,
+      error: authError,
     } = await supabase.auth.getUser(token);
 
-    if (error || !user) {
+    if (authError || !user) {
       return res.status(401).json({
         success: false,
         error: "Unauthorized: Invalid or expired token.",
       });
     }
 
-    // STRICT ADMIN CHECK: Verify user email matches admin email
-    if (user.email?.toLowerCase() !== ENV.ADMIN_EMAIL?.toLowerCase()) {
+    // 1. Super Admin Fallback (Config-based)
+    const isSuperAdmin =
+      user.email?.toLowerCase() === ENV.ADMIN_EMAIL?.toLowerCase();
+
+    // 2. Database Role Check
+    const { data: dbUser, error: dbError } = await supabase
+      .from("users")
+      .select("id, email, role")
+      .eq("id", user.id)
+      .single();
+
+    const isAdminRole = dbUser?.role?.toLowerCase() === "admin";
+
+    // GRANT ACCESS if either condition is met
+    if (!isSuperAdmin && !isAdminRole) {
       return res.status(403).json({
         success: false,
         error:
@@ -41,8 +54,8 @@ export async function adminAuth(req, res, next) {
       });
     }
 
-    // Attach user to request for downstream use
-    req.user = user;
+    // Attach user to request for downstream use (prefer DB user for accurate role)
+    req.user = dbUser || user;
     next();
   } catch (error) {
     console.error("Admin auth middleware error:", error);

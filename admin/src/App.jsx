@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import Users from "./pages/Users";
 import Finances from "./pages/Finances";
 import Moderations from "./pages/Moderations";
+import Verifications from "./pages/Verifications";
 import Health from "./pages/Health";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
@@ -20,13 +21,6 @@ function ProtectedRoute({ children, session }) {
     );
   if (!session) return <Navigate to="/login" replace />;
 
-  // STRICT SECURITY: Final check for admin email
-  if (session.user?.email !== import.meta.env.VITE_ADMIN_EMAIL) {
-    // Manually clear storage to prevent 403 Network Error from api logout
-    localStorage.clear();
-    return <Navigate to="/login" replace />;
-  }
-
   return children;
 }
 
@@ -34,30 +28,14 @@ function App() {
   const [session, setSession] = useState(undefined);
 
   useEffect(() => {
+    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.toLowerCase();
-      const userEmail = session?.user?.email?.toLowerCase();
-
-      if (session && userEmail !== adminEmail) {
-        localStorage.clear();
-        setSession(null);
-      } else {
-        setSession(session);
-      }
+      setSession(session);
     });
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.toLowerCase();
-      const userEmail = session?.user?.email?.toLowerCase();
-
-      if (session && userEmail !== adminEmail) {
-        localStorage.clear();
-        setSession(null);
-      } else {
-        setSession(session);
-      }
+      setSession(session);
     });
 
     return () => subscription.unsubscribe();
@@ -91,6 +69,7 @@ function App() {
           <Route path="users" element={<Users />} />
           <Route path="finances" element={<Finances />} />
           <Route path="moderations" element={<Moderations />} />
+          <Route path="verifications" element={<Verifications />} />
           <Route path="health" element={<Health />} />
           <Route path="settings" element={<Settings />} />
         </Route>

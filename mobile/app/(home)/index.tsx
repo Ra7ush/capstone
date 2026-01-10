@@ -31,7 +31,7 @@ export default function Home() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.replace("/auth/login");
+    router.replace("/(auth)/login");
   };
 
   return (

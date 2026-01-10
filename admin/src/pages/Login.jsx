@@ -12,32 +12,40 @@ function Login() {
   const navigate = useNavigate();
 
   const loginMutation = useMutation({
-    mutationFn: login.AdminLogin,
-    onSuccess: (data) => {
-      const { session } = data.data || {};
-      if (session) {
-        supabase.auth.setSession(session);
-        navigate("/dashboard");
-      }
+    mutationFn: login.VerifyAdmin,
+    onSuccess: () => {
+      navigate("/dashboard");
     },
-    onError: (error) => {
+    onError: async (error) => {
       const errorMsg =
-        error.response?.data?.error || error.message || "Login failed";
+        error.response?.data?.error || error.message || "Verification failed";
       setError(errorMsg);
+      // Clean up session if verification fails
+      await supabase.auth.signOut();
     },
   });
 
-  const handleEmailLogin = (e) => {
+  const handleEmailLogin = async (e) => {
     e.preventDefault();
     setError("");
 
-    // Quick client-side check
-    if (email !== import.meta.env.VITE_ADMIN_EMAIL) {
-      setError("Access denied: Restricted to administrator only.");
-      return;
-    }
+    try {
+      // 1. Sign in directly with Supabase
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    loginMutation.mutate({ email, password });
+      if (authError) {
+        setError(authError.message);
+        return;
+      }
+
+      // 2. If Auth is successful, trigger backend verification via mutation
+      loginMutation.mutate();
+    } catch (err) {
+      setError(err.message || "An unexpected error occurred");
+    }
   };
 
   const handleGoogleLogin = async () => {
@@ -50,15 +58,12 @@ function Login() {
           queryParams: {
             access_type: "offline",
             prompt: "consent",
-            // Restrict to admin email domain hint for better UX
-            login_hint: import.meta.env.VITE_ADMIN_EMAIL,
           },
         },
       });
       if (error) throw error;
-      // Note: Post-OAuth admin validation is handled by App.jsx's onAuthStateChange
-      // which checks if user email matches VITE_ADMIN_EMAIL and clears session if not.
-      // Additionally, all backend API endpoints are protected by adminAuth middleware.
+      // Note: Post-OAuth admin validation is handled by backend adminAuth middleware
+      // which verifies user email matches the configured ADMIN_EMAIL server-side.
     } catch (err) {
       setError(err.message);
     }

@@ -1,15 +1,12 @@
 import axiosInstance from "./axios";
 
 export const login = {
-  AdminLogin: async ({ email, password }) => {
+  VerifyAdmin: async () => {
     try {
-      const response = await axiosInstance.post("/admin/login", {
-        email,
-        password,
-      });
+      const response = await axiosInstance.get("/admin/verify");
       return response.data;
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("Verification error:", error);
       throw error;
     }
   },
