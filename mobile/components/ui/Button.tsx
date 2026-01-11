@@ -102,15 +102,25 @@ export function Button({
       {loading ? (
         <ActivityIndicator size="small" color={iconColor} />
       ) : (
-        <View className="flex-row items-center space-x-2">
+        <View className="flex-row items-center gap-2">
           {icon && iconPosition === "left" && (
-            <Ionicons name={icon} size={sizeStyle.icon} color={iconColor} />
+            <Ionicons
+              name={icon}
+              size={sizeStyle.icon}
+              color={iconColor}
+              style={{ marginRight: 8 }}
+            />
           )}
           <Text className={`font-bold ${variantStyle.text} ${sizeStyle.text}`}>
             {title}
           </Text>
           {icon && iconPosition === "right" && (
-            <Ionicons name={icon} size={sizeStyle.icon} color={iconColor} />
+            <Ionicons
+              name={icon}
+              size={sizeStyle.icon}
+              color={iconColor}
+              style={{ marginLeft: 8 }}
+            />
           )}
         </View>
       )}

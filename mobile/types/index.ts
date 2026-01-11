@@ -33,7 +33,7 @@ export interface User {
 // Creator Types
 // ============================================
 
-export type VerificationStatus = "none" | "pending" | "approved" | "rejected";
+export type VerificationStatus = "none" | "pending" | "verified" | "rejected";
 
 export interface Creator {
   id: string;

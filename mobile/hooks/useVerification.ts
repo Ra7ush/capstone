@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import api from "@/lib/api";
 import type { VerificationStatus, VerificationResponse } from "@/types";
-import { QUERY_KEYS } from "@/constants";
+import { QUERY_KEYS, VERIFICATION_STATUS } from "@/constants";
 
 interface VerificationData {
   full_legal_name: string;
@@ -48,7 +48,7 @@ export function useVerification() {
         .from("creators")
         .select("verification_status, verified_at")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       return creator as {
         verification_status: VerificationStatus;
@@ -112,7 +112,8 @@ export function useVerification() {
 
   return {
     // Verification status
-    verificationStatus: verificationStatus?.verification_status || "none",
+    verificationStatus:
+      verificationStatus?.verification_status || VERIFICATION_STATUS.NONE,
     verifiedAt: verificationStatus?.verified_at || null,
     isLoadingStatus,
     isStatusError,

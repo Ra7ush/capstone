@@ -3,6 +3,7 @@ import {
   Text,
   TextInput as RNTextInput,
   TextInputProps,
+  TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { forwardRef } from "react";
@@ -61,12 +62,12 @@ export const Input = forwardRef<RNTextInput, InputProps>(
             {...props}
           />
           {rightIcon && (
-            <Ionicons
-              name={rightIcon}
-              size={20}
-              color="#9CA3AF"
+            <TouchableOpacity
               onPress={onRightIconPress}
-            />
+              disabled={!onRightIconPress}
+            >
+              <Ionicons name={rightIcon} size={20} color="#9CA3AF" />
+            </TouchableOpacity>
           )}
         </View>
         {error && (

@@ -14,7 +14,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { AVATARS } from "@/constants";
+import { AVATARS, VERIFICATION_STATUS } from "@/constants";
 
 export default function Onboarding() {
   const router = useRouter();
@@ -89,7 +89,6 @@ export default function Onboarding() {
           {
             user_id: userId,
             bio: bio.trim() || null,
-            verification_status: "unverified",
           },
           { onConflict: "user_id" }
         );

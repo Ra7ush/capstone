@@ -90,7 +90,7 @@ export function getVerificationStatusColor(status: string): string {
   const colors: Record<string, string> = {
     none: "#9CA3AF",
     pending: "#F59E0B",
-    approved: "#10B981",
+    verified: "#10B981",
     rejected: "#EF4444",
   };
   return colors[status] || colors.none;
