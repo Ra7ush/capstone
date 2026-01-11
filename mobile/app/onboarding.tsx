@@ -12,18 +12,9 @@ import {
   StyleSheet,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { supabase } from "../lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
-
-// Avatar options (placeholder URLs - replace with actual images)
-const AVATARS = [
-  "https://api.dicebear.com/7.x/avataaars/png?seed=1",
-  "https://api.dicebear.com/7.x/avataaars/png?seed=2",
-  "https://api.dicebear.com/7.x/avataaars/png?seed=3",
-  "https://api.dicebear.com/7.x/avataaars/png?seed=4",
-  "https://api.dicebear.com/7.x/avataaars/png?seed=5",
-  "https://api.dicebear.com/7.x/avataaars/png?seed=6",
-];
+import { AVATARS } from "@/constants";
 
 export default function Onboarding() {
   const router = useRouter();
@@ -32,7 +23,7 @@ export default function Onboarding() {
   const [email, setEmail] = useState<string | null>(null);
 
   const [username, setUsername] = useState("");
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
+  const [selectedAvatar, setSelectedAvatar] = useState<string>(AVATARS[0]);
   const [isCreator, setIsCreator] = useState(false);
   const [bio, setBio] = useState("");
 
@@ -115,7 +106,7 @@ export default function Onboarding() {
           {
             text: isCreator ? "Start Verification" : "Let's Go!",
             onPress: () =>
-              router.replace(isCreator ? "/verification-apply" : "/(home)"),
+              router.replace(isCreator ? "/verification-apply" : "/(tabs)"),
           },
         ]
       );

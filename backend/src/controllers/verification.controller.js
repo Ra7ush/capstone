@@ -6,8 +6,15 @@ import supabase from "../config/db.js";
 export async function submitVerification(req, res) {
   try {
     const userId = req.user.id;
-    const { full_legal_name, id_type, id_front_url, id_back_url, selfie_url } =
-      req.body;
+    const {
+      full_legal_name,
+      id_type,
+      id_front_url,
+      id_back_url,
+      selfie_url,
+      social_links,
+      portfolio_url,
+    } = req.body;
 
     // 1. Basic validation
     if (!full_legal_name || !id_type || !id_front_url || !selfie_url) {
@@ -41,6 +48,8 @@ export async function submitVerification(req, res) {
         id_front_url,
         id_back_url,
         selfie_url,
+        social_links,
+        portfolio_url,
       })
       .select()
       .single();
@@ -144,7 +153,8 @@ export async function getPendingRequests(req, res) {
  */
 export async function updateRequestStatus(req, res) {
   try {
-    const { id } = req.params;
+    const params = req.validatedParams || req.params;
+    const { id } = params;
     const { status, admin_notes } = req.body;
 
     if (!["approved", "rejected"].includes(status)) {
@@ -184,6 +194,36 @@ export async function updateRequestStatus(req, res) {
     });
   } catch (error) {
     console.error("Update verification status error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "An internal error occurred",
+    });
+  }
+}
+
+/**
+ * Get current user's verification status
+ */
+export async function getVerificationStatus(req, res) {
+  try {
+    const userId = req.user.id;
+
+    const { data, error } = await supabase
+      .from("creator_verification_requests")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.status(200).json({
+      success: true,
+      data: data || null,
+    });
+  } catch (error) {
+    console.error("Get verification status error:", error);
     res.status(500).json({
       success: false,
       error: error.message || "An internal error occurred",

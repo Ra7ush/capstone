@@ -2,7 +2,7 @@ import { Redirect } from "expo-router";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Link, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useAuthState } from "../lib/useAuthState";
+import { useAuthState } from "../hooks/useAuthState";
 import LoadingScreen from "../components/LoadingScreen";
 
 export default function Index() {

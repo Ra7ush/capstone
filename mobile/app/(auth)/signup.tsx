@@ -10,13 +10,12 @@ import {
   Alert,
 } from "react-native";
 import { Stack, useRouter, Link } from "expo-router";
-import { supabase } from "../../lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { makeRedirectUri } from "expo-auth-session";
 import { openAuthSessionAsync } from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const PENDING_EMAIL_KEY = "@pending_verification_email";
+import { STORAGE_KEYS } from "@/constants";
 
 export default function Signup() {
   const router = useRouter();
@@ -53,7 +52,7 @@ export default function Signup() {
         ]);
       } else if (data.user) {
         // Save pending email for app restart recovery
-        await AsyncStorage.setItem(PENDING_EMAIL_KEY, formData.email);
+        await AsyncStorage.setItem(STORAGE_KEYS.PENDING_EMAIL, formData.email);
 
         // Navigate to OTP verification
         router.push({
