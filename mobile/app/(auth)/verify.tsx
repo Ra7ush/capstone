@@ -11,7 +11,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
-import { supabase } from "../../lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function Verify() {

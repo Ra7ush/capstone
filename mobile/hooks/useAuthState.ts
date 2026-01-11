@@ -1,15 +1,7 @@
 import { useState, useEffect } from "react";
-import { supabase } from "./supabase";
+import { supabase } from "@/lib/supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-export type AuthState = {
-  isLoading: boolean;
-  session: any | null;
-  isEmailVerified: boolean;
-  hasProfile: boolean;
-  pendingEmail: string | null;
-  user: any | null;
-};
+import type { AuthState } from "@/types";
 
 const PENDING_EMAIL_KEY = "@pending_verification_email";
 

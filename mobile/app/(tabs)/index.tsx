@@ -2,7 +2,7 @@ import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "../../lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { useState, useEffect } from "react";
 
 export default function Home() {

@@ -10,34 +10,25 @@ import {
   ShieldCheck,
   Eye,
   Info,
+  Github,
+  Linkedin,
+  Instagram,
+  Briefcase,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { verificationApi } from "../lib/api";
 
 function Verifications() {
   const queryClient = useQueryClient();
   const [selectedRequest, setSelectedRequest] = useState(null);
 
-  //TODO: add the function in the api.js
   const { data: verifications, isLoading } = useQuery({
     queryKey: ["verifications", "pending"],
-    queryFn: async () => {
-      const response = await axiosInstance.get("/admin/verifications/pending");
-      return response.data.data;
-    },
+    queryFn: verificationApi.getAllPendingVerifications,
   });
 
-  //TODO: add the function in the api.js
   const statusMutation = useMutation({
-    mutationFn: async ({ id, status, admin_notes }) => {
-      const response = await axiosInstance.put(
-        `/admin/verifications/${id}/status`,
-        {
-          status,
-          admin_notes,
-        }
-      );
-      return response.data;
-    },
+    mutationFn: verificationApi.updateVerification,
     onSuccess: () => {
       queryClient.invalidateQueries(["verifications"]);
       toast.success("Verification updated successfully");

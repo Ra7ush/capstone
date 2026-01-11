@@ -10,7 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { Stack, useRouter, Link } from "expo-router";
-import { supabase } from "../../lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { makeRedirectUri } from "expo-auth-session";
 import { openAuthSessionAsync } from "expo-web-browser";

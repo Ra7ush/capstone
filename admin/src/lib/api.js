@@ -131,3 +131,27 @@ export const moderationApi = {
     }
   },
 };
+
+export const verificationApi = {
+  getAllPendingVerifications: async () => {
+    try {
+      const response = await axiosInstance.get("/admin/verifications/pending");
+      return response.data.data;
+    } catch (error) {
+      console.error("Error fetching pending verifications:", error);
+      throw error;
+    }
+  },
+  updateVerification: async (id, { status, admin_notes }) => {
+    try {
+      const response = await axiosInstance.put(`/admin/verifications/${id}`, {
+        status,
+        admin_notes,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error updating verification:", error);
+      throw error;
+    }
+  },
+};

@@ -3,8 +3,8 @@ import { LogBox } from "react-native";
 import { Stack, useRouter, useSegments, SplashScreen } from "expo-router";
 import "../global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useAuthState } from "../lib/useAuthState";
-import LoadingScreen from "../components/LoadingScreen";
+import { useAuthState } from "@/hooks/useAuthState";
+import LoadingScreen from "@/components/LoadingScreen";
 
 // Suppress SafeAreaView deprecation warning from dependencies
 LogBox.ignoreLogs(["SafeAreaView has been deprecated"]);
@@ -37,7 +37,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     const currentRoute = segments.join("/");
     const inAuthGroup = segments[0] === "(auth)";
     const inOnboarding = segments[0] === "onboarding";
-    const inHomeGroup = segments[0] === "(home)";
+    const inTabsGroup = segments[0] === "(tabs)";
 
     console.log("Auth Guard Check:", {
       hasSession: !!session,
@@ -60,17 +60,18 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           params: { email: session.user.email },
         });
       }
-    } else if (!hasProfile && !inHomeGroup) {
-      // Verified but no profile → should be on onboarding (unless navigating to home after completion)
+    } else if (!hasProfile && !inTabsGroup) {
+      // Verified but no profile → should be on onboarding (unless navigating to tabs after completion)
       if (!inOnboarding) {
         router.replace("/onboarding");
       }
     } else if (hasProfile) {
-      // Fully authenticated → should be in home group
+      // Fully authenticated → should be in tabs group
       if (inAuthGroup || inOnboarding) {
-        router.replace("/(home)");
+        router.replace("/(tabs)");
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, session, isEmailVerified, hasProfile]);
 
   // Reset the check when segments change (user navigated)
