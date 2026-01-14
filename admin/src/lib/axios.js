@@ -24,4 +24,26 @@ axiosInstance.interceptors.request.use(
   }
 );
 
+// Add response interceptor to handle session invalidation
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    // Handle 401 (Unauthorized) or 429 (Too Many Requests)
+    if (error.response?.status === 401) {
+      console.warn("Session invalid. Logging out.");
+      try {
+        await supabase.auth.signOut();
+      } catch (logoutError) {
+        console.error("SignOut failed, forcing redirect:", logoutError);
+      } finally {
+        // Clear only auth-related storage
+        localStorage.removeItem("supabase.auth.token");
+        // Force redirect to login
+        window.location.href = "/login";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default axiosInstance;

@@ -22,9 +22,12 @@ export interface User {
   id: string;
   email: string;
   username: string;
+  full_name: string | null;
   role: UserRole;
   status: UserStatus;
   profile_image_url: string | null;
+  followers_count: number;
+  following_count: number;
   created_at: string;
   updated_at: string;
 }

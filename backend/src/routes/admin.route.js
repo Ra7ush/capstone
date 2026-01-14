@@ -17,7 +17,7 @@ import {
 import {
   getPendingRequests,
   updateRequestStatus,
-} from "../controllers/verification.controller.js";
+} from "../controllers/creator.controller.js";
 import { adminAuth } from "../middlewares/adminAuth.js";
 import {
   validateRequest,

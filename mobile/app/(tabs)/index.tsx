@@ -22,10 +22,16 @@ export default function Home() {
       setUser(user);
       const { data: profile } = await supabase
         .from("users")
-        .select("*")
+        .select("*, creators(verification_status)")
         .eq("id", user.id)
         .single();
-      setProfile(profile);
+
+      if (profile) {
+        setProfile({
+          ...profile,
+          verification_status: profile.creators?.verification_status || "none",
+        });
+      }
     }
   };
 
@@ -33,6 +39,11 @@ export default function Home() {
     await supabase.auth.signOut();
     router.replace("/(auth)/login");
   };
+
+  const isVerified = profile?.verification_status === "verified";
+  const isPending = profile?.verification_status === "pending";
+  const isRejected = profile?.verification_status === "rejected";
+  const needsVerification = profile?.role === "creator" && !isVerified;
 
   return (
     <ScrollView className="flex-1 bg-white">
@@ -65,38 +76,169 @@ export default function Home() {
           </TouchableOpacity>
         </View>
 
-        {/* Role Badge */}
-        {profile?.role === "creator" && (
-          <View className="bg-orange-50 border border-orange-200 rounded-2xl p-4 mb-6 flex-row items-center">
-            <View className="w-10 h-10 rounded-full bg-orange-500 items-center justify-center mr-3">
-              <Ionicons name="star" size={20} color="white" />
+        {/* Verification CTA Banner */}
+        {needsVerification && (
+          <TouchableOpacity
+            onPress={() => router.push("/verification-apply")}
+            className={`rounded-2xl p-5 mb-8 border ${
+              isRejected
+                ? "bg-red-50 border-red-200"
+                : "bg-orange-50 border-orange-200"
+            }`}
+          >
+            <View className="flex-row items-center mb-4">
+              <View
+                className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
+                  isRejected ? "bg-red-500" : "bg-orange-500"
+                }`}
+              >
+                <Ionicons
+                  name={
+                    isRejected
+                      ? "alert-circle"
+                      : isPending
+                        ? "time"
+                        : "shield-checkmark"
+                  }
+                  size={20}
+                  color="white"
+                />
+              </View>
+              <View className="flex-1">
+                <Text
+                  className={`font-bold ${
+                    isRejected ? "text-red-800" : "text-orange-800"
+                  }`}
+                >
+                  {isRejected
+                    ? "Action Required"
+                    : isPending
+                      ? "Verification Pending"
+                      : "Identity Check"}
+                </Text>
+                <Text
+                  className={`${
+                    isRejected ? "text-red-600" : "text-orange-600"
+                  } text-xs`}
+                >
+                  Status: {profile?.verification_status}
+                </Text>
+              </View>
             </View>
-            <View className="flex-1">
-              <Text className="text-orange-800 font-bold">Creator Account</Text>
-              <Text className="text-orange-600 text-xs">
-                Verification: {profile.verification_status || "pending"}
+
+            <View className="bg-white/50 rounded-xl p-3 flex-row items-center justify-between border border-white">
+              <Text className="text-gray-600 text-xs font-medium flex-1 mr-4">
+                {isRejected
+                  ? "Your verification was rejected. Please update your documents."
+                  : isPending
+                    ? "Hang tight! Admins are reviewing your documents."
+                    : "Complete your identity check to start selling."}
               </Text>
+              {!isPending && (
+                <Ionicons name="arrow-forward" size={16} color="#4B5563" />
+              )}
             </View>
-          </View>
+          </TouchableOpacity>
         )}
 
-        {/* Quick Stats */}
+        {/* Revenue Snapshot */}
+        <View className="mb-8">
+          <View className="bg-black rounded-[2.5rem] p-6 shadow-xl shadow-black/20">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-gray-400 text-xs font-black uppercase tracking-widest">
+                Wallet Balance
+              </Text>
+              <View className="bg-[#FF4D00] px-3 py-1 rounded-full">
+                <Text className="text-white text-[10px] font-black uppercase">
+                  Available
+                </Text>
+              </View>
+            </View>
+            <Text className="text-white text-4xl font-black italic tracking-tighter mb-6">
+              $1,280.50
+            </Text>
+
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-gray-400 text-xs font-black uppercase tracking-widest">
+                Pending Payout
+              </Text>
+              <View className="bg-white/10 px-3 py-1 rounded-full">
+                <Text className="text-gray-300 text-[10px] font-black uppercase">
+                  Processing
+                </Text>
+              </View>
+            </View>
+            <Text className="text-white text-2xl font-black italic tracking-tighter">
+              $450.00
+            </Text>
+
+            <View className="flex-row items-center mt-6 pt-6 border-t border-white/10">
+              <TouchableOpacity className="flex-1 bg-white/10 py-3 rounded-2xl items-center mr-2">
+                <Text className="text-white font-bold text-sm">Withdraw</Text>
+              </TouchableOpacity>
+              <TouchableOpacity className="flex-1 bg-[#FF4D00] py-3 rounded-2xl items-center ml-2">
+                <Text className="text-white font-bold text-sm">Insights</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Growth & Metrics */}
         <View className="mb-8">
           <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">
-            Overview
+            Growth Sync
           </Text>
-          <View className="flex-row gap-3">
-            <View className="flex-1 bg-gray-50 rounded-2xl p-4">
-              <Ionicons name="cube-outline" size={24} color="#9CA3AF" />
-              <Text className="text-2xl font-black text-black mt-2">0</Text>
-              <Text className="text-gray-400 text-xs font-medium">
-                Products
+          <View className="flex-row flex-wrap gap-3">
+            <View className="w-[48%] bg-gray-50 rounded-3xl p-5 border border-gray-100">
+              <View className="flex-row justify-between mb-2">
+                <Ionicons name="people" size={20} color="#9CA3AF" />
+                <Text className="text-green-500 text-[10px] font-black">
+                  +12%
+                </Text>
+              </View>
+              <Text className="text-2xl font-black text-black">1,234</Text>
+              <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                Total Followers
               </Text>
             </View>
-            <View className="flex-1 bg-gray-50 rounded-2xl p-4">
-              <Ionicons name="cart-outline" size={24} color="#9CA3AF" />
-              <Text className="text-2xl font-black text-black mt-2">0</Text>
-              <Text className="text-gray-400 text-xs font-medium">Orders</Text>
+
+            <View className="w-[48%] bg-gray-50 rounded-3xl p-5 border border-gray-100">
+              <View className="flex-row justify-between mb-2">
+                <Ionicons name="cash-outline" size={20} color="#9CA3AF" />
+                <Text className="text-green-500 text-[10px] font-black">
+                  +8%
+                </Text>
+              </View>
+              <Text className="text-2xl font-black text-black">$4,890</Text>
+              <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                Monthly Revenue
+              </Text>
+            </View>
+
+            <View className="w-[48%] bg-gray-50 rounded-3xl p-5 border border-gray-100">
+              <View className="flex-row justify-between mb-2">
+                <Ionicons name="star" size={20} color="#9CA3AF" />
+                <Text className="text-orange-500 text-[10px] font-black">
+                  98%
+                </Text>
+              </View>
+              <Text className="text-2xl font-black text-black">4.9</Text>
+              <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                Rating
+              </Text>
+            </View>
+
+            <View className="w-[48%] bg-gray-50 rounded-3xl p-5 border border-gray-100">
+              <View className="flex-row justify-between mb-2">
+                <Ionicons name="trending-up" size={20} color="#9CA3AF" />
+                <Text className="text-blue-500 text-[10px] font-black">
+                  Top 1%
+                </Text>
+              </View>
+              <Text className="text-2xl font-black text-black">#42</Text>
+              <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                Rank
+              </Text>
             </View>
           </View>
         </View>
@@ -107,33 +249,141 @@ export default function Home() {
             Quick Actions
           </Text>
 
-          <TouchableOpacity className="bg-black rounded-2xl p-5 flex-row items-center justify-between mb-3">
-            <View className="flex-row items-center">
-              <View className="w-10 h-10 rounded-full bg-white/10 items-center justify-center mr-3">
-                <Ionicons name="add" size={24} color="white" />
-              </View>
-              <Text className="text-white font-bold">Create New Product</Text>
+          <TouchableOpacity className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center mb-4 shadow-sm">
+            <View className="w-12 h-12 rounded-full bg-orange-50 items-center justify-center mr-4">
+              <Ionicons name="add-circle-outline" size={26} color="#FF4D00" />
             </View>
-            <Ionicons name="arrow-forward" size={20} color="white" />
+            <View className="flex-1">
+              <Text className="text-black font-black text-lg">Create Post</Text>
+              <Text className="text-gray-500 text-xs font-medium">
+                Share updates with your community
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
           </TouchableOpacity>
 
-          <TouchableOpacity className="bg-gray-50 rounded-2xl p-5 flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View className="w-10 h-10 rounded-full bg-gray-200 items-center justify-center mr-3">
-                <Ionicons name="settings-outline" size={24} color="#374151" />
-              </View>
-              <Text className="text-black font-bold">Account Settings</Text>
+          <TouchableOpacity className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center mb-4 shadow-sm">
+            <View className="w-12 h-12 rounded-full bg-blue-50 items-center justify-center mr-4">
+              <Ionicons name="briefcase-outline" size={24} color="#3B82F6" />
             </View>
-            <Ionicons name="arrow-forward" size={20} color="#9CA3AF" />
+            <View className="flex-1">
+              <Text className="text-black font-black text-lg">Add Service</Text>
+              <Text className="text-gray-500 text-xs font-medium">
+                Offer a new service or product
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+          </TouchableOpacity>
+
+          <TouchableOpacity className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center mb-4 shadow-sm">
+            <View className="w-12 h-12 rounded-full bg-purple-50 items-center justify-center mr-4">
+              <Ionicons name="calendar-outline" size={24} color="#A855F7" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-black font-black text-lg">
+                Schedule Event
+              </Text>
+              <Text className="text-gray-500 text-xs font-medium">
+                Plan a live session or meetup
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+          </TouchableOpacity>
+
+          <TouchableOpacity className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center shadow-sm">
+            <View className="w-12 h-12 rounded-full bg-green-50 items-center justify-center mr-4">
+              <Ionicons name="bar-chart-outline" size={24} color="#10B981" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-black font-black text-lg">
+                View Analytics
+              </Text>
+              <Text className="text-gray-500 text-xs font-medium">
+                Check your growth metrics
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
           </TouchableOpacity>
         </View>
 
-        {/* Logout Button */}
+        {/* Recent Activity */}
+        <View className="mb-8">
+          <View className="flex-row items-center justify-between mb-4">
+            <Text className="text-xs font-black text-gray-400 uppercase tracking-widest">
+              Recent Activity
+            </Text>
+            <TouchableOpacity>
+              <Text className="text-[#FF4D00] text-xs font-bold">View All</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View className="bg-gray-50 rounded-[2.5rem] p-2 border border-gray-100">
+            <View className="bg-white rounded-[2rem] p-4 flex-row items-center mb-1">
+              <View className="w-10 h-10 rounded-full bg-orange-100 items-center justify-center mr-3">
+                <Text className="text-orange-600 font-bold">JD</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-black font-bold text-sm">
+                  John Doe joined your community
+                </Text>
+                <Text className="text-gray-400 text-[10px] font-medium">
+                  2 min ago
+                </Text>
+              </View>
+            </View>
+
+            <View className="bg-white rounded-[2rem] p-4 flex-row items-center mb-1">
+              <View className="w-10 h-10 rounded-full bg-blue-100 items-center justify-center mr-3">
+                <Text className="text-blue-600 font-bold">SM</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-black font-bold text-sm">
+                  Sarah M. purchased Premium tier
+                </Text>
+                <Text className="text-gray-400 text-[10px] font-medium">
+                  1 hour ago
+                </Text>
+              </View>
+            </View>
+
+            <View className="bg-white rounded-[2rem] p-4 flex-row items-center mb-1">
+              <View className="w-10 h-10 rounded-full bg-purple-100 items-center justify-center mr-3">
+                <Text className="text-purple-600 font-bold">AK</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-black font-bold text-sm">
+                  Alex K. commented on your post
+                </Text>
+                <Text className="text-gray-400 text-[10px] font-medium">
+                  3 hours ago
+                </Text>
+              </View>
+            </View>
+
+            <View className="bg-white rounded-[2rem] p-4 flex-row items-center">
+              <View className="w-10 h-10 rounded-full bg-green-100 items-center justify-center mr-3">
+                <Text className="text-green-600 font-bold">MR</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-black font-bold text-sm">
+                  Mike R. booked a consultation
+                </Text>
+                <Text className="text-gray-400 text-[10px] font-medium">
+                  5 hours ago
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Profile Helper (Temporary replacement for old settings button) */}
         <TouchableOpacity
           onPress={handleLogout}
-          className="mt-4 py-4 items-center"
+          className="mt-4 py-4 items-center bg-gray-50 rounded-2xl border border-dashed border-gray-200"
         >
-          <Text className="text-red-500 font-bold">Log Out</Text>
+          <Text className="text-gray-400 font-bold text-xs uppercase tracking-widest">
+            Session: Logout
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

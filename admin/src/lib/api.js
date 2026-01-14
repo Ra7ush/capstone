@@ -142,12 +142,15 @@ export const verificationApi = {
       throw error;
     }
   },
-  updateVerification: async (id, { status, admin_notes }) => {
+  updateVerification: async ({ id, status, admin_notes }) => {
     try {
-      const response = await axiosInstance.put(`/admin/verifications/${id}`, {
-        status,
-        admin_notes,
-      });
+      const response = await axiosInstance.put(
+        `/admin/verifications/${id}/status`,
+        {
+          status,
+          admin_notes,
+        }
+      );
       return response.data;
     } catch (error) {
       console.error("Error updating verification:", error);

@@ -15,7 +15,7 @@ export default function Index() {
 
   // If user is fully authenticated, redirect to home
   if (session && hasProfile) {
-    return <Redirect href="/(home)" />;
+    return <Redirect href="/(tabs)" />;
   }
 
   // Otherwise show the welcome/landing page

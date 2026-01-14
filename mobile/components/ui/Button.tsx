@@ -1,7 +1,13 @@
 import { TouchableOpacity, Text, ActivityIndicator, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
+type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "outline"
+  | "ghost"
+  | "danger"
+  | "brand";
 type ButtonSize = "sm" | "md" | "lg";
 
 interface ButtonProps {
@@ -14,6 +20,8 @@ interface ButtonProps {
   icon?: keyof typeof Ionicons.glyphMap;
   iconPosition?: "left" | "right";
   className?: string;
+  textClassName?: string;
+  textColor?: string;
 }
 
 const variantStyles: Record<
@@ -22,6 +30,10 @@ const variantStyles: Record<
 > = {
   primary: {
     container: "bg-black",
+    text: "text-white",
+  },
+  brand: {
+    container: "bg-[#FF4D00]",
     text: "text-white",
   },
   secondary: {
@@ -48,17 +60,17 @@ const sizeStyles: Record<
 > = {
   sm: {
     container: "h-10 px-4 rounded-xl",
-    text: "text-sm",
-    icon: 16,
+    text: "text-xs",
+    icon: 14,
   },
   md: {
     container: "h-14 px-6 rounded-2xl",
-    text: "text-base",
+    text: "text-sm",
     icon: 20,
   },
   lg: {
     container: "h-16 px-8 rounded-2xl",
-    text: "text-lg",
+    text: "text-base",
     icon: 24,
   },
 };
@@ -78,13 +90,18 @@ export function Button({
   icon,
   iconPosition = "left",
   className = "",
+  textClassName = "",
+  textColor,
 }: ButtonProps) {
   const variantStyle = variantStyles[variant];
   const sizeStyle = sizeStyles[size];
   const isDisabled = disabled || loading;
 
-  const iconColor =
-    variant === "primary" || variant === "danger" ? "#FFFFFF" : "#000000";
+  const defaultIconColor =
+    variant === "primary" || variant === "danger" || variant === "brand"
+      ? "#FFFFFF"
+      : "#000000";
+  const finalIconColor = textColor || defaultIconColor;
 
   return (
     <TouchableOpacity
@@ -100,25 +117,28 @@ export function Button({
       `}
     >
       {loading ? (
-        <ActivityIndicator size="small" color={iconColor} />
+        <ActivityIndicator size="small" color={finalIconColor} />
       ) : (
-        <View className="flex-row items-center gap-2">
+        <View className="flex-row items-center">
           {icon && iconPosition === "left" && (
             <Ionicons
               name={icon}
               size={sizeStyle.icon}
-              color={iconColor}
+              color={finalIconColor}
               style={{ marginRight: 8 }}
             />
           )}
-          <Text className={`font-bold ${variantStyle.text} ${sizeStyle.text}`}>
+          <Text
+            className={`font-black uppercase tracking-widest ${variantStyle.text} ${sizeStyle.text} ${textClassName}`}
+            style={textColor ? { color: textColor } : {}}
+          >
             {title}
           </Text>
           {icon && iconPosition === "right" && (
             <Ionicons
               name={icon}
               size={sizeStyle.icon}
-              color={iconColor}
+              color={finalIconColor}
               style={{ marginLeft: 8 }}
             />
           )}
