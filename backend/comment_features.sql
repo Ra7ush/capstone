@@ -1,7 +1,7 @@
 create table if not exists public.comment_likes (
   id uuid default gen_random_uuid() primary key,
-  user_id uuid references auth.users not null,
-  comment_id uuid references public.comments not null,
+  user_id uuid references auth.users on delete cascade not null,
+  comment_id uuid references public.comments on delete cascade not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   unique(user_id, comment_id)
 );
@@ -9,7 +9,7 @@ create table if not exists public.comment_likes (
 alter table public.comments
 add column if not exists likes_count bigint default 0,
 add column if not exists replies_count bigint default 0,
-add column if not exists parent_id uuid references public.comments(id),
+add column if not exists parent_id uuid references public.comments(id) on delete cascade,
 add column if not exists is_edited boolean default false;
 
 alter table public.comment_likes enable row level security;
@@ -42,6 +42,15 @@ returns void as $$
 begin
   update public.comments
   set replies_count = replies_count + 1
+  where id = parent_row_id;
+end;
+$$ language plpgsql security definer;
+
+create or replace function decrement_comment_replies(parent_row_id uuid)
+returns void as $$
+begin
+  update public.comments
+  set replies_count = greatest(replies_count - 1, 0)
   where id = parent_row_id;
 end;
 $$ language plpgsql security definer;

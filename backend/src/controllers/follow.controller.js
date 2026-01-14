@@ -64,7 +64,7 @@ export async function getFollowers(req, res) {
     const { data, error } = await supabase
       .from("follows")
       .select(
-        "follower_id, users!follows_follower_id_fkey(id, username, email, followers_count, following_count, creators(bio))"
+        "follower_id, users!follows_follower_id_fkey(id, username, followers_count, following_count, creators(bio))"
       )
       .eq("following_id", userId);
 
@@ -90,22 +90,18 @@ export async function getFollowers(req, res) {
 
 export async function getFollowing(req, res) {
   const { id: userId } = req.params;
-
   try {
     const { data, error } = await supabase
       .from("follows")
       .select(
-        "following_id, users!follows_following_id_fkey(id, username, email, followers_count, following_count, creators(bio))"
+        "following_id, users!follows_following_id_fkey(id, username, followers_count, following_count, creators(bio))"
       )
       .eq("follower_id", userId);
-
     if (error) throw error;
-
     const following = data.map((f) => ({
       ...f.users,
       bio: f.users.creators?.bio,
     }));
-
     res.status(200).json({
       success: true,
       data: following,

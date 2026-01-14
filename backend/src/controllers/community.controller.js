@@ -230,13 +230,17 @@ export async function likePost(req, res) {
       post_id: id,
       user_id: userId,
     });
-
     if (error) {
       return res.status(500).json({ success: false, error: error.message });
     }
-
     // Increment likes_count
-    await supabase.rpc("increment_likes", { post_id: id });
+    const { error: rpcError } = await supabase.rpc("increment_likes", {
+      post_id: id,
+    });
+    if (rpcError) {
+      console.error("Failed to increment likes count:", rpcError);
+      // Consider rolling back the like insert or logging for reconciliation
+    }
 
     return res.status(200).json({ success: true, message: "Post liked" });
   } catch (error) {
@@ -253,19 +257,21 @@ export async function unlikePost(req, res) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from("likes")
       .delete()
       .eq("post_id", id)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .select("*", { count: "exact", head: true });
 
     if (error) {
       return res.status(500).json({ success: false, error: error.message });
     }
 
     // Decrement likes_count
-    await supabase.rpc("decrement_likes", { post_id: id });
-
+    if (count && count > 0) {
+      await supabase.rpc("decrement_likes", { post_id: id });
+    }
     return res.status(200).json({ success: true, message: "Post unliked" });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
@@ -392,7 +398,7 @@ export async function deleteComment(req, res) {
     // Check ownership
     const { data: existingComment } = await supabase
       .from("comments")
-      .select("user_id, post_id")
+      .select("user_id, post_id, parent_id")
       .eq("id", commentId)
       .single();
 
@@ -414,6 +420,12 @@ export async function deleteComment(req, res) {
 
     // Decrement comments_count
     await supabase.rpc("decrement_comments", { post_id: id });
+
+    if (existingComment?.parent_id) {
+      await supabase.rpc("decrement_comment_replies", {
+        parent_row_id: existingComment.parent_id,
+      });
+    }
 
     return res.status(200).json({ success: true, message: "Comment deleted" });
   } catch (error) {
@@ -517,11 +529,21 @@ export async function editComment(req, res) {
       .eq("user_id", userId) // Ensure ownership
       .select()
       .single();
-
     if (error) {
+      if (error.code === "PGRST116") {
+        return res.status(404).json({
+          success: false,
+          error: "Comment not found or not authorized",
+        });
+      }
       return res.status(500).json({ success: false, error: error.message });
     }
-
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: "Comment not found or not authorized",
+      });
+    }
     return res.status(200).json({ success: true, data });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
