@@ -6,6 +6,8 @@ import helmet from "helmet";
 import { ENV } from "./config/env.js";
 import adminRouter from "./routes/admin.route.js";
 import creatorRouter from "./routes/creator.route.js";
+import communityRouter from "./routes/community.route.js";
+import followRouter from "./routes/follow.route.js";
 
 const __dirname = path.resolve();
 
@@ -62,6 +64,12 @@ app.use("/api/admin/verify", authLimiter);
 
 // Admin routes
 app.use("/api/admin", adminRouter);
+
+//Community routes
+app.use("/api/community", communityRouter);
+
+//Follow routes
+app.use("/api/follow", followRouter);
 
 // Creator routes
 app.use("/api/creator", creatorRouter);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { AuthState } from "@/types";
+import type { AuthState, VerificationStatus } from "@/types";
 
 const PENDING_EMAIL_KEY = "@pending_verification_email";
 
@@ -70,16 +70,28 @@ export function useAuthState() {
       // Supabase sets email_confirmed_at when email is verified
       const isEmailVerified = !!user.email_confirmed_at;
 
-      // 4. Check if user has completed onboarding (has profile in users table)
+      // 4. Check if user has completed onboarding and get their role/verification
       let hasProfile = false;
+      let userProfile = null;
+      let verificationStatus: VerificationStatus = "none";
+
       if (isEmailVerified) {
         const { data: profile } = await supabase
           .from("users")
-          .select("id")
+          .select("*, creators(verification_status, bio)")
           .eq("id", user.id)
           .single();
 
-        hasProfile = !!profile;
+        if (profile) {
+          hasProfile = true;
+          userProfile = {
+            ...profile,
+            bio: profile.creators?.bio,
+          };
+          if (profile.role === "creator" && profile.creators) {
+            verificationStatus = profile.creators.verification_status;
+          }
+        }
       }
 
       // Clear pending email if verified
@@ -93,7 +105,11 @@ export function useAuthState() {
         isEmailVerified,
         hasProfile,
         pendingEmail: isEmailVerified ? null : pendingEmail,
-        user,
+        user: {
+          ...user,
+          profile: userProfile,
+          verificationStatus,
+        },
       });
     } catch (error) {
       console.error("Auth state check error:", error);

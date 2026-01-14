@@ -2,8 +2,13 @@ import { useEffect, useRef } from "react";
 import { LogBox } from "react-native";
 import { Stack, useRouter, useSegments, SplashScreen } from "expo-router";
 import "../global.css";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useAuthState } from "@/hooks/useAuthState";
+import { communityApi } from "@/lib/api";
 import LoadingScreen from "@/components/LoadingScreen";
 
 // Suppress SafeAreaView deprecation warning from dependencies
@@ -17,8 +22,22 @@ const queryClient = new QueryClient();
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
+  const qc = useQueryClient();
   const { isLoading, session, isEmailVerified, hasProfile } = useAuthState();
   const initialCheckDone = useRef(false);
+
+  // Background pre-fetching for community feed
+  useEffect(() => {
+    if (hasProfile) {
+      console.log("Pre-fetching community feed...");
+      qc.prefetchInfiniteQuery({
+        queryKey: ["community-feed"],
+        queryFn: ({ pageParam = 1 }) =>
+          communityApi.getFeed({ page: pageParam as number, limit: 10 }),
+        initialPageParam: 1,
+      });
+    }
+  }, [hasProfile, qc]);
 
   useEffect(() => {
     // Only run once per auth state change, not on every render

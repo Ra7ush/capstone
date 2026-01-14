@@ -230,3 +230,35 @@ export async function getVerificationStatus(req, res) {
     });
   }
 }
+
+/**
+ *  Get creator stats
+ */
+export async function getCreatorStats(req, res) {
+  try {
+  } catch (error) {}
+}
+
+/**
+ * Get creator profile
+ */
+export async function getCreatorProfile(req, res) {
+  try {
+  } catch (error) {}
+}
+
+/**
+ * Update creator profile
+ */
+export async function updateCreatorProfile(req, res) {
+  try {
+  } catch (error) {}
+}
+
+/**
+ * Delete creator profile
+ */
+export async function deleteCreatorProfile(req, res) {
+  try {
+  } catch (error) {}
+}

@@ -1,18 +1,22 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   ScrollView,
   Image,
   ActivityIndicator,
   Alert,
+  TouchableOpacity,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useVerification } from "@/hooks";
+import { Input, Button } from "@/components/ui";
+import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const VERIFICATION_DRAFT_KEY = "@verification_apply_draft";
 
 export default function VerificationApply() {
   const router = useRouter();
@@ -38,6 +42,57 @@ export default function VerificationApply() {
     selfie: null,
   });
   const [isUploading, setIsUploading] = useState(false);
+  const [isDraftLoading, setIsDraftLoading] = useState(true);
+
+  // Load draft on mount
+  useEffect(() => {
+    const loadDraft = async () => {
+      try {
+        const draftJson = await AsyncStorage.getItem(VERIFICATION_DRAFT_KEY);
+        if (draftJson) {
+          const draft = JSON.parse(draftJson);
+          setStep(draft.step || 1);
+          setFullLegalName(draft.fullLegalName || "");
+          setIdType(draft.idType || "national_id");
+          setSocialLinks(
+            draft.socialLinks || { github: "", linkedin: "", instagram: "" }
+          );
+          setPortfolioUrl(draft.portfolioUrl || "");
+          // We don't restore images for now as temporary URIs might be expired
+          // but we could if we want to be aggressive.
+        }
+      } catch (e) {
+        console.error("Failed to load verification draft", e);
+      } finally {
+        setIsDraftLoading(false);
+      }
+    };
+    loadDraft();
+  }, []);
+
+  // Save draft on changes
+  useEffect(() => {
+    if (isDraftLoading) return;
+
+    const saveDraft = async () => {
+      try {
+        const draft = {
+          step,
+          fullLegalName,
+          idType,
+          socialLinks,
+          portfolioUrl,
+        };
+        await AsyncStorage.setItem(
+          VERIFICATION_DRAFT_KEY,
+          JSON.stringify(draft)
+        );
+      } catch (e) {
+        console.error("Failed to save verification draft", e);
+      }
+    };
+    saveDraft();
+  }, [step, fullLegalName, idType, socialLinks, portfolioUrl, isDraftLoading]);
 
   const pickImage = async (type: "front" | "back" | "selfie") => {
     // Request permissions
@@ -108,6 +163,9 @@ export default function VerificationApply() {
         portfolio_url: portfolioUrl,
       });
 
+      // Clear draft on success
+      await AsyncStorage.removeItem(VERIFICATION_DRAFT_KEY);
+
       // 3. Success - navigate to tabs
       Alert.alert(
         "Success",
@@ -123,274 +181,318 @@ export default function VerificationApply() {
 
   const isLoading = isSubmitting || isUploading;
 
+  const renderProgress = () => (
+    <View className="flex-row gap-2 mb-8">
+      {[1, 2, 3, 4].map((s) => (
+        <View
+          key={s}
+          className={`h-1 flex-1 rounded-full ${
+            s <= step ? "bg-[#FF4D00]" : "bg-white/10"
+          }`}
+        />
+      ))}
+    </View>
+  );
+
+  if (isDraftLoading) {
+    return (
+      <View className="flex-1 bg-black items-center justify-center">
+        <ActivityIndicator size="large" color="#FF4D00" />
+      </View>
+    );
+  }
+
   return (
-    <ScrollView className="flex-1 bg-black p-6">
-      <View className="mt-12 space-y-6 pb-20">
-        <View className="space-y-2">
-          <Text className="text-3xl font-black text-white">
-            Identity Verification
-          </Text>
-          <Text className="text-gray-400">
-            Required for creators in Kurdistan.
-          </Text>
-        </View>
+    <SafeAreaView className="flex-1 bg-black">
+      <ScrollView className="flex-1 px-6">
+        <View className="py-8 pb-32">
+          {/* Header */}
+          <View className="mb-8">
+            <Text className="text-4xl font-black text-white italic tracking-tighter">
+              Identity<Text className="text-[#FF4D00]">Check</Text>
+            </Text>
+            <Text className="text-gray-400 font-bold mt-2 uppercase tracking-widest text-xs">
+              Kurdistan Region Creator Portal
+            </Text>
+          </View>
 
-        {step === 1 && (
-          <View className="space-y-6">
-            <View className="bg-white/5 p-5 rounded-3xl border border-white/10 space-y-4">
-              <View>
-                <Text className="text-white font-bold mb-2">Legal Name</Text>
-                <View className="h-14 bg-white/10 rounded-2xl px-4 border border-white/10 justify-center">
-                  <TextInput
-                    className="text-white font-bold text-base"
-                    placeholder="As shown on your ID"
-                    placeholderTextColor="#6B7280"
-                    value={fullLegalName}
-                    onChangeText={setFullLegalName}
-                  />
-                </View>
-              </View>
+          {renderProgress()}
 
-              <View>
-                <Text className="text-white font-bold mb-2">
-                  ID Document Type
-                </Text>
-                <View className="flex-row gap-2">
-                  {[
-                    { id: "national_id", label: "National ID" },
-                    { id: "passport", label: "Passport" },
-                  ].map((type) => (
-                    <TouchableOpacity
-                      key={type.id}
-                      onPress={() => setIdType(type.id)}
-                      className={`flex-1 h-12 rounded-xl items-center justify-center border ${
-                        idType === type.id
-                          ? "bg-[#FF4D00] border-[#FF4D00]"
-                          : "bg-white/5 border-white/10"
-                      }`}
-                    >
-                      <Text
-                        className={`font-bold text-xs ${
-                          idType === type.id ? "text-white" : "text-gray-400"
+          {step === 1 && (
+            <View className="gap-8">
+              <View className="bg-white/5 p-6 rounded-[2.5rem] border border-white/10 gap-6">
+                <Input
+                  label="Legal Full Name"
+                  placeholder="As shown on your ID Card"
+                  value={fullLegalName}
+                  onChangeText={setFullLegalName}
+                  icon="person-outline"
+                />
+
+                <View>
+                  <Text className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 mb-3">
+                    ID Document Type
+                  </Text>
+                  <View className="flex-row gap-3">
+                    {[
+                      { id: "national_id", label: "National ID" },
+                      { id: "passport", label: "Passport" },
+                    ].map((type) => (
+                      <Button
+                        key={type.id}
+                        title={type.label}
+                        onPress={() => setIdType(type.id)}
+                        variant={idType === type.id ? "brand" : "outline"}
+                        textColor="white"
+                        className={`flex-1 ${
+                          idType === type.id
+                            ? "border-[#FF4D00]"
+                            : "border-white/10"
                         }`}
-                      >
-                        {type.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        size="sm"
+                      />
+                    ))}
+                  </View>
                 </View>
               </View>
-            </View>
 
-            <TouchableOpacity
-              onPress={() => {
-                if (!fullLegalName.trim()) {
-                  Alert.alert("Error", "Please enter your full legal name.");
-                  return;
-                }
-                setStep(2);
-              }}
-              className="h-16 rounded-2xl bg-[#FF4D00] items-center justify-center shadow-lg shadow-[#FF4D00]/20"
-            >
-              <Text className="text-white font-black uppercase tracking-widest">
-                Continue
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {step === 2 && (
-          <View className="space-y-6">
-            <View className="bg-white/5 p-5 rounded-3xl border border-white/10 space-y-4">
-              <Text className="text-white font-bold mb-2">Social Links</Text>
-
-              {[
-                { id: "github", icon: "logo-github", color: "#FFF" },
-                { id: "linkedin", icon: "logo-linkedin", color: "#0077B5" },
-                { id: "instagram", icon: "logo-instagram", color: "#E4405F" },
-              ].map((social) => (
-                <View
-                  key={social.id}
-                  className="h-14 bg-white/10 rounded-2xl px-4 border border-white/10 flex-row items-center"
-                >
-                  <Ionicons
-                    name={social.icon as any}
-                    size={20}
-                    color={social.color}
-                  />
-                  <TextInput
-                    className="flex-1 text-white ml-3 font-medium"
-                    placeholder={`${social.id.charAt(0).toUpperCase() + social.id.slice(1)} URL or @handle`}
-                    placeholderTextColor="#6B7280"
-                    value={(socialLinks as any)[social.id]}
-                    onChangeText={(val) =>
-                      setSocialLinks((prev) => ({ ...prev, [social.id]: val }))
-                    }
-                  />
-                </View>
-              ))}
-
-              <View className="pt-4 border-t border-white/5">
-                <Text className="text-white font-bold mb-2">
-                  Portfolio / CV
-                </Text>
-                <View className="h-14 bg-white/10 rounded-2xl px-4 border border-white/10 flex-row items-center">
-                  <Ionicons name="link-outline" size={20} color="#FF4D00" />
-                  <TextInput
-                    className="flex-1 text-white ml-3 font-medium"
-                    placeholder="Link to your work"
-                    placeholderTextColor="#6B7280"
-                    value={portfolioUrl}
-                    onChangeText={setPortfolioUrl}
-                  />
-                </View>
-              </View>
-            </View>
-
-            <View className="flex-row gap-4">
-              <TouchableOpacity
-                onPress={() => setStep(1)}
-                className="flex-1 h-16 bg-gray-800 rounded-2xl items-center justify-center"
-              >
-                <Text className="text-white font-black uppercase tracking-widest">
-                  Back
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setStep(3)}
-                className="flex-[2] h-16 rounded-2xl bg-[#FF4D00] items-center justify-center"
-              >
-                <Text className="text-white font-black uppercase tracking-widest">
-                  Next Step
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {step === 3 && (
-          <View className="space-y-6">
-            <View className="bg-white/5 p-4 rounded-3xl border border-white/10">
-              <Text className="text-white font-bold mb-4">
-                Step 3: ID Front
-              </Text>
-              <TouchableOpacity
-                onPress={() => pickImage("front")}
-                className="h-48 bg-white/10 rounded-2xl border-2 border-dashed border-white/20 items-center justify-center overflow-hidden"
-              >
-                {images.front ? (
-                  <Image
-                    source={{ uri: images.front }}
-                    className="w-full h-full"
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Ionicons name="camera" size={40} color="white" />
-                )}
-              </TouchableOpacity>
-            </View>
-
-            <View className="bg-white/5 p-4 rounded-3xl border border-white/10">
-              <Text className="text-white font-bold mb-4">
-                Step 3: ID Back (Optional)
-              </Text>
-              <TouchableOpacity
-                onPress={() => pickImage("back")}
-                className="h-48 bg-white/10 rounded-2xl border-2 border-dashed border-white/20 items-center justify-center overflow-hidden"
-              >
-                {images.back ? (
-                  <Image
-                    source={{ uri: images.back }}
-                    className="w-full h-full"
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Ionicons name="camera" size={40} color="white" />
-                )}
-              </TouchableOpacity>
-            </View>
-
-            <View className="flex-row gap-4">
-              <TouchableOpacity
-                onPress={() => setStep(2)}
-                className="flex-1 h-16 bg-gray-800 rounded-2xl items-center justify-center"
-              >
-                <Text className="text-white font-black uppercase tracking-widest">
-                  Back
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              <Button
+                title="Continue"
                 onPress={() => {
-                  if (!images.front) {
-                    Alert.alert("Error", "Please upload the front of your ID.");
+                  if (!fullLegalName.trim()) {
+                    Alert.alert("Error", "Please enter your full legal name.");
                     return;
                   }
-                  setStep(4);
+                  setStep(2);
                 }}
-                className="flex-[2] h-16 rounded-2xl bg-[#FF4D00] items-center justify-center"
-              >
-                <Text className="text-white font-black uppercase tracking-widest">
-                  Next Step
-                </Text>
-              </TouchableOpacity>
+                variant="brand"
+                icon="arrow-forward"
+                iconPosition="right"
+              />
             </View>
-          </View>
-        )}
+          )}
 
-        {step === 4 && (
-          <View className="space-y-6">
-            <View className="bg-white/5 p-4 rounded-3xl border border-white/10">
-              <Text className="text-white font-bold mb-2">
-                Step 4: Liveness Selfie
-              </Text>
-              <Text className="text-gray-400 text-xs mb-4">
-                Please take a clear photo of your face.
-              </Text>
-              <TouchableOpacity
-                onPress={() => pickImage("selfie")}
-                className="h-64 bg-white/10 rounded-2xl border-2 border-dashed border-white/20 items-center justify-center overflow-hidden"
-              >
-                {images.selfie ? (
-                  <Image
-                    source={{ uri: images.selfie }}
-                    className="w-full h-full"
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Ionicons name="person" size={50} color="white" />
-                )}
-              </TouchableOpacity>
-            </View>
-
-            <View className="flex-row gap-4">
-              <TouchableOpacity
-                onPress={() => setStep(3)}
-                className="flex-1 h-16 bg-gray-800 rounded-2xl items-center justify-center"
-              >
-                <Text className="text-white font-black uppercase tracking-widest">
-                  Back
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleSubmit}
-                disabled={isLoading || !images.selfie}
-                className={`flex-[2] h-16 rounded-2xl items-center justify-center ${
-                  !images.selfie || isLoading ? "bg-gray-800" : "bg-[#FF4D00]"
-                }`}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <Text className="text-white font-black uppercase tracking-widest">
-                    Submit Review
+          {step === 2 && (
+            <View className="gap-8">
+              <View className="bg-white/5 p-6 rounded-[2.5rem] border border-white/10 gap-6">
+                <View>
+                  <Text className="text-xl font-black text-white mb-4">
+                    ID Documents
                   </Text>
-                )}
-              </TouchableOpacity>
+
+                  <Text className="text-white font-bold mb-3 px-1 text-sm">
+                    ID Front Side
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => pickImage("front")}
+                    className="h-56 bg-white/5 rounded-3xl border-2 border-dashed border-white/10 items-center justify-center overflow-hidden"
+                  >
+                    {images.front ? (
+                      <Image
+                        source={{ uri: images.front }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View className="items-center">
+                        <Ionicons name="camera" size={40} color="#6B7280" />
+                        <Text className="text-gray-500 font-bold mt-2">
+                          Tap to Scan Front
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                <View>
+                  <Text className="text-white font-bold mb-3 px-1 text-sm">
+                    ID Back Side (Optional)
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => pickImage("back")}
+                    className="h-56 bg-white/5 rounded-3xl border-2 border-dashed border-white/10 items-center justify-center overflow-hidden"
+                  >
+                    {images.back ? (
+                      <Image
+                        source={{ uri: images.back }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View className="items-center">
+                        <Ionicons name="camera" size={40} color="#6B7280" />
+                        <Text className="text-gray-500 font-bold mt-2">
+                          Tap to Scan Back
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View className="flex-row gap-4">
+                <Button
+                  title="Back"
+                  onPress={() => setStep(1)}
+                  variant="outline"
+                  textColor="white"
+                  className="flex-1 border-white/10"
+                />
+                <Button
+                  title="Continue"
+                  onPress={() => {
+                    if (!images.front) {
+                      Alert.alert(
+                        "Error",
+                        "Please upload the front of your ID."
+                      );
+                      return;
+                    }
+                    setStep(3);
+                  }}
+                  variant="brand"
+                  className="flex-[2]"
+                  icon="arrow-forward"
+                  iconPosition="right"
+                />
+              </View>
             </View>
-          </View>
-        )}
-      </View>
-    </ScrollView>
+          )}
+
+          {step === 3 && (
+            <View className="gap-8">
+              <View className="bg-white/5 p-6 rounded-[2.5rem] border border-white/10 gap-6">
+                <View>
+                  <Text className="text-xl font-black text-white">
+                    Liveness Check
+                  </Text>
+                  <Text className="text-gray-400 font-bold mt-1 mb-6 text-xs">
+                    Please take a clear photo of your face.
+                  </Text>
+
+                  <TouchableOpacity
+                    onPress={() => pickImage("selfie")}
+                    className="aspect-square bg-white/5 rounded-[3rem] border-2 border-dashed border-white/10 items-center justify-center overflow-hidden"
+                  >
+                    {images.selfie ? (
+                      <Image
+                        source={{ uri: images.selfie }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View className="items-center">
+                        <Ionicons name="person" size={60} color="#6B7280" />
+                        <Text className="text-gray-500 font-bold mt-4">
+                          Take Verification Selfie
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View className="flex-row gap-4">
+                <Button
+                  title="Back"
+                  onPress={() => setStep(2)}
+                  variant="outline"
+                  textColor="white"
+                  className="flex-1 border-white/10"
+                />
+                <Button
+                  title="Continue"
+                  onPress={() => {
+                    if (!images.selfie) {
+                      Alert.alert("Error", "Please take a clear selfie photo.");
+                      return;
+                    }
+                    setStep(4);
+                  }}
+                  variant="brand"
+                  className="flex-[2]"
+                  icon="arrow-forward"
+                  iconPosition="right"
+                  disabled={!images.selfie}
+                />
+              </View>
+            </View>
+          )}
+
+          {step === 4 && (
+            <View className="gap-8">
+              <View className="bg-white/5 p-6 rounded-[2.5rem] border border-white/10 gap-6">
+                <View>
+                  <Text className="text-xl font-black text-white">
+                    Links & Portfolio
+                  </Text>
+                  <Text className="text-gray-400 font-bold mt-1 mb-6 text-xs">
+                    Help us understand your work better.
+                  </Text>
+
+                  <View className="gap-4">
+                    <Input
+                      label="GitHub"
+                      placeholder="github.com/username"
+                      value={socialLinks.github}
+                      onChangeText={(val) =>
+                        setSocialLinks((p) => ({ ...p, github: val }))
+                      }
+                      icon="logo-github"
+                    />
+                    <Input
+                      label="LinkedIn"
+                      placeholder="linkedin.com/in/username"
+                      value={socialLinks.linkedin}
+                      onChangeText={(val) =>
+                        setSocialLinks((p) => ({ ...p, linkedin: val }))
+                      }
+                      icon="logo-linkedin"
+                    />
+                    <Input
+                      label="Instagram"
+                      placeholder="@username"
+                      value={socialLinks.instagram}
+                      onChangeText={(val) =>
+                        setSocialLinks((p) => ({ ...p, instagram: val }))
+                      }
+                      icon="logo-instagram"
+                    />
+                    <View className="pt-2">
+                      <Input
+                        label="Portfolio / CV (Optional)"
+                        placeholder="https://yourportfolio.com"
+                        value={portfolioUrl}
+                        onChangeText={setPortfolioUrl}
+                        icon="link-outline"
+                      />
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              <View className="flex-row gap-4">
+                <Button
+                  title="Back"
+                  onPress={() => setStep(3)}
+                  variant="outline"
+                  textColor="white"
+                  className="flex-1 border-white/10"
+                />
+                <Button
+                  title="Submit Review"
+                  onPress={handleSubmit}
+                  loading={isLoading}
+                  variant="brand"
+                  className="flex-[2]"
+                  icon="cloud-upload-outline"
+                  iconPosition="left"
+                />
+              </View>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }

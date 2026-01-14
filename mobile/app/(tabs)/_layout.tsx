@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /**
@@ -40,13 +41,48 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {/* Add more tabs as your app grows:
       <Tabs.Screen
-        name="explore"
+        name="community"
         options={{
-          title: "Explore",
+          title: "Community",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search" size={size} color={color} />
+            <Ionicons name="people" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="service"
+        options={{
+          title: "Service",
+          tabBarIcon: ({ focused }) => (
+            <View
+              className={`w-14 h-14 rounded-full items-center justify-center -mt-8 border-4 border-white ${
+                focused ? "bg-[#FF4D00]" : "bg-black"
+              }`}
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 8,
+              }}
+            >
+              <Ionicons name="briefcase" size={24} color="white" />
+            </View>
+          ),
+          tabBarLabelStyle: {
+            fontSize: 10,
+            fontWeight: "900",
+            marginTop: 14, // Push label down to clear the larger button
+          },
+        }}
+      />
+      <Tabs.Screen
+        name="message"
+        options={{
+          title: "Message",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubble" size={size} color={color} />
           ),
         }}
       />
@@ -59,7 +95,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-      */}
     </Tabs>
   );
 }

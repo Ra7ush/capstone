@@ -213,6 +213,89 @@ function Verifications() {
                     </div>
                   </div>
 
+                  {/* Social & Professional Links */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      <Briefcase size={14} /> Social & Professional
+                    </h3>
+                    <div className="bg-gray-50 rounded-3xl p-6 space-y-4">
+                      {selectedRequest.social_links &&
+                        Object.entries(selectedRequest.social_links).map(
+                          ([platform, handle]) =>
+                            handle && (
+                              <div
+                                key={platform}
+                                className="flex justify-between border-b border-gray-100 pb-3 last:border-0 last:pb-0"
+                              >
+                                <div className="flex items-center gap-2">
+                                  {platform === "github" && (
+                                    <Github size={14} className="text-black" />
+                                  )}
+                                  {platform === "linkedin" && (
+                                    <Linkedin
+                                      size={14}
+                                      className="text-blue-600"
+                                    />
+                                  )}
+                                  {platform === "instagram" && (
+                                    <Instagram
+                                      size={14}
+                                      className="text-pink-600"
+                                    />
+                                  )}
+                                  <span className="text-[10px] font-black text-gray-400 uppercase">
+                                    {platform}
+                                  </span>
+                                </div>
+                                <a
+                                  href={
+                                    handle.startsWith("http")
+                                      ? handle
+                                      : `https://${handle}`
+                                  }
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs font-black text-blue-600 hover:underline flex items-center gap-1"
+                                >
+                                  {handle} <ExternalLink size={10} />
+                                </a>
+                              </div>
+                            )
+                        )}
+                      {selectedRequest.portfolio_url && (
+                        <div className="flex justify-between pt-1">
+                          <div className="flex items-center gap-2">
+                            <Briefcase size={14} className="text-[#FF4D00]" />
+                            <span className="text-[10px] font-black text-gray-400 uppercase">
+                              Portfolio/CV
+                            </span>
+                          </div>
+                          <a
+                            href={
+                              selectedRequest.portfolio_url.startsWith("http")
+                                ? selectedRequest.portfolio_url
+                                : `https://${selectedRequest.portfolio_url}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-black text-blue-600 hover:underline flex items-center gap-1"
+                          >
+                            View Portfolio <ExternalLink size={10} />
+                          </a>
+                        </div>
+                      )}
+                      {!selectedRequest.portfolio_url &&
+                        (!selectedRequest.social_links ||
+                          Object.values(selectedRequest.social_links).every(
+                            (v) => !v
+                          )) && (
+                          <p className="text-[10px] font-bold text-gray-400 uppercase text-center py-2">
+                            No links provided
+                          </p>
+                        )}
+                    </div>
+                  </div>
+
                   <div className="space-y-3">
                     <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                       <ShieldCheck size={14} /> Selfie Analysis

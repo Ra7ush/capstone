@@ -24,4 +24,28 @@ axiosInstance.interceptors.request.use(
   }
 );
 
+// Add response interceptor to handle session invalidation
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    // Handle 401 (Unauthorized) or 429 (Too Many Requests)
+    if (error.response?.status === 401 || error.response?.status === 429) {
+      console.warn(
+        `Session error (${error.response.status}). Forcing nuclear logout.`
+      );
+      try {
+        await supabase.auth.signOut();
+      } catch (logoutError) {
+        console.error("SignOut failed, forcing redirect:", logoutError);
+      } finally {
+        // Nuclear option: Clear local storage to remove the ghost session
+        localStorage.clear();
+        // Force redirect to login
+        window.location.href = "/login";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default axiosInstance;
