@@ -12,15 +12,26 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { supabase } from "@/lib/supabase";
 import { useAuthState } from "@/hooks/useAuthState";
 import { useFollow } from "@/hooks/useFollow";
+import { useUser } from "@/hooks/useProfile";
 import { formatTimeAgo } from "@/lib/utils";
+import { RefreshControl } from "react-native";
 
 export default function Profile() {
   const router = useRouter();
-  const { user } = useAuthState();
-  const profile = user?.profile;
+  const { user: authUser, refresh: refreshAuth } = useAuthState();
+  const {
+    data: dbUser,
+    isLoading: isLoadingUser,
+    refetch: refetchUser,
+  } = useUser();
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Prioritize hook data (dbUser) over auth state, but fallback to authUser
+  const profile = dbUser || authUser?.profile;
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState<"followers" | "following">(
@@ -28,7 +39,7 @@ export default function Profile() {
   );
 
   const { followers, following, isLoadingFollowers, isLoadingFollowing } =
-    useFollow(user?.id);
+    useFollow(authUser?.id);
 
   const stats = {
     followers: profile?.followers_count || 0,
@@ -44,6 +55,15 @@ export default function Profile() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.replace("/(auth)/login");
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchUser(), refreshAuth()]);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const sections = [
@@ -105,7 +125,13 @@ export default function Profile() {
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar style="dark" />
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Header / Brand Profile */}
         <View className="px-6 pt-16 pb-8 bg-black">
           <View className="flex-row items-center gap-4 mb-6">
@@ -116,26 +142,42 @@ export default function Profile() {
             </View>
             <View className="flex-1">
               <Text className="text-white text-2xl font-black italic tracking-tighter">
-                {profile?.full_name || profile?.username || "Nexus Creator"}
+                {profile?.full_name || profile?.username || "Nexus User"}
               </Text>
               <Text className="text-gray-400 font-bold">
-                @{profile?.username || "blue"}
+                @{profile?.username || "user"}
               </Text>
-              <View className="flex-row items-center mt-2">
-                <View className="bg-[#FF4D00] px-2 py-0.5 rounded-full mr-2">
-                  <Text className="text-white text-[10px] font-black uppercase">
-                    PRO
-                  </Text>
-                </View>
+              <View className="flex-row items-center mt-2 flex-wrap gap-2">
+                {profile?.role && (
+                  <View className="bg-[#FF4D00] px-2 py-0.5 rounded-full">
+                    <Text className="text-white text-[10px] font-black uppercase">
+                      {profile.role}
+                    </Text>
+                  </View>
+                )}
+                {profile?.verification_status &&
+                  profile.verification_status !== "none" && (
+                    <View
+                      className={`px-2 py-0.5 rounded-full flex-row items-center ${
+                        profile.verification_status === "verified"
+                          ? "bg-blue-500"
+                          : profile.verification_status === "rejected"
+                            ? "bg-red-500"
+                            : "bg-yellow-500"
+                      }`}
+                    >
+                      <Text className="text-white text-[10px] font-black uppercase">
+                        {profile.verification_status}
+                      </Text>
+                    </View>
+                  )}
                 <Text className="text-gray-500 text-[10px] font-black uppercase">
-                  ID: {user?.id?.slice(0, 8)?.toUpperCase() || "--------"}
+                  ID:{" "}
+                  {dbUser?.id?.slice(0, 8)?.toUpperCase() ||
+                    authUser?.id?.slice(0, 8)?.toUpperCase() ||
+                    "--------"}
                 </Text>
               </View>
-              {profile?.bio && (
-                <Text className="text-gray-400 text-xs font-bold mt-3 leading-4">
-                  {profile.bio}
-                </Text>
-              )}
             </View>
             <TouchableOpacity
               onPress={() => router.push("/profile-edit")}

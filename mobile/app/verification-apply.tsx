@@ -7,9 +7,12 @@ import {
   ActivityIndicator,
   Alert,
   TouchableOpacity,
+  Platform,
+  ActionSheetIOS,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useVerification } from "@/hooks";
 import { Input, Button } from "@/components/ui";
@@ -94,31 +97,119 @@ export default function VerificationApply() {
     saveDraft();
   }, [step, fullLegalName, idType, socialLinks, portfolioUrl, isDraftLoading]);
 
-  const pickImage = async (type: "front" | "back" | "selfie") => {
-    // Request permissions
-    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-    const libraryPermission =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const pickFromFiles = async (type: "front" | "back" | "selfie") => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["image/*"],
+        copyToCacheDirectory: true,
+      });
 
-    if (
-      cameraPermission.status !== "granted" ||
-      libraryPermission.status !== "granted"
-    ) {
-      Alert.alert(
-        "Permission Required",
-        "We need camera and gallery permissions to verify your identity."
-      );
-      return;
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setImages((prev) => ({ ...prev, [type]: result.assets[0].uri }));
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
     }
+  };
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: "images",
-      allowsEditing: true,
-      quality: 0.7,
-    });
+  const pickImage = async (type: "front" | "back" | "selfie") => {
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ["Cancel", "Take Photo", "Photo Library", "Browse Files"],
+          cancelButtonIndex: 0,
+          title: `Capture ${type === "selfie" ? "Selfie" : "ID " + type.charAt(0).toUpperCase() + type.slice(1)}`,
+        },
+        async (buttonIndex) => {
+          if (buttonIndex === 1) {
+            await pickFromCamera(type);
+          } else if (buttonIndex === 2) {
+            await pickFromLibrary(type);
+          } else if (buttonIndex === 3) {
+            await pickFromFiles(type);
+          }
+        }
+      );
+    } else {
+      // Android - prefer camera for verification
+      await pickFromCamera(type);
+    }
+  };
 
-    if (!result.canceled) {
-      setImages((prev) => ({ ...prev, [type]: result.assets[0].uri }));
+  const pickFromCamera = async (type: "front" | "back" | "selfie") => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Camera access is needed for verification."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.7,
+        exif: false,
+      });
+
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setImages((prev) => ({ ...prev, [type]: result.assets[0].uri }));
+      }
+    } catch {
+      // Fallback to library
+      await pickFromLibrary(type);
+    }
+  };
+
+  const pickFromLibrary = async (type: "front" | "back" | "selfie") => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Photo library access is needed for verification."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.7,
+        exif: false,
+      });
+
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setImages((prev) => ({ ...prev, [type]: result.assets[0].uri }));
+      }
+    } catch (error: any) {
+      console.error("Error picking image:", error);
+
+      // iOS PHPicker bug - offer Document Picker as fallback
+      if (
+        error?.message?.includes("public.jpeg") ||
+        error?.message?.includes("public.heic") ||
+        error?.message?.includes("representation")
+      ) {
+        Alert.alert(
+          "Image Loading Issue",
+          "There was a problem loading that image. Would you like to try the file browser instead?",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Browse Files",
+              onPress: () => pickFromFiles(type),
+            },
+          ]
+        );
+      } else {
+        Alert.alert("Error", "Could not load the image. Please try again.");
+      }
     }
   };
 

@@ -9,6 +9,7 @@ import { communityApi } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { useAuthState } from "./useAuthState";
+import { useRef, useCallback } from "react";
 
 type PaginationData = {
   total: number;
@@ -17,10 +18,28 @@ type PaginationData = {
   hasMore: boolean;
 };
 
-export type FeedResponse = {
-  success: boolean;
-  data: Post[];
-  pagination: PaginationData;
+export type Community = {
+  id: string;
+  name: string;
+  description?: string;
+  banner_url?: string;
+  privacy: "public" | "private";
+  category: string;
+  members_count: number;
+  creator_id: string;
+  created_at: string;
+  creator?: {
+    id: string;
+    username: string;
+  };
+};
+
+export type CommunityMember = {
+  community_id: string;
+  user_id: string;
+  role: "member" | "admin";
+  joined_at: string;
+  community?: Community;
 };
 
 export type Post = {
@@ -28,6 +47,7 @@ export type Post = {
   content: string;
   images?: string[];
   user_id: string;
+  community_id?: string | null;
   created_at: string;
   updated_at: string;
   likes_count: number;
@@ -39,9 +59,12 @@ export type Post = {
     username: string;
     email: string;
     bio?: string;
+    avatar_url?: string;
     followers_count?: number;
     following_count?: number;
+    verification_status?: string;
   };
+  community?: Community;
 };
 
 type Comment = {
@@ -55,6 +78,7 @@ type Comment = {
     username: string;
     email: string;
     bio?: string;
+    avatar_url?: string;
   };
   likes_count: number;
   replies_count: number;
@@ -62,9 +86,19 @@ type Comment = {
   has_liked?: boolean;
 };
 
-export function useCommunity() {
+export type FeedResponse = {
+  success: boolean;
+  data: Post[];
+  pagination: PaginationData;
+};
+
+export function useCommunity(communityId?: string) {
   const queryClient = useQueryClient();
   const { user } = useAuthState();
+
+  // Per-post mutation lock to prevent race conditions
+  // Uses a ref to avoid re-renders and stale closure issues
+  const pendingLikeMutations = useRef<Set<string>>(new Set());
 
   // --- Feed Query (Paginated) ---
   const {
@@ -77,14 +111,18 @@ export function useCommunity() {
     isFetchingNextPage,
     refetch: refetchFeed,
   } = useInfiniteQuery<FeedResponse>({
-    queryKey: ["community-feed"],
+    queryKey: ["posts", communityId],
     queryFn: ({ pageParam = 1 }) =>
-      communityApi.getFeed({ page: pageParam as number, limit: 10 }),
+      communityApi.getFeed({
+        page: pageParam as number,
+        limit: 10,
+        community_id: communityId,
+      }),
     getNextPageParam: (lastPage) =>
       lastPage.pagination.hasMore ? lastPage.pagination.page + 1 : undefined,
     initialPageParam: 1,
     staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 30, // 30 minutes
+    gcTime: 1000 * 60 * 60 * 24, // 24 hours for persistence
   });
 
   // Flattened feed for the UI
@@ -96,7 +134,7 @@ export function useCommunity() {
     updater: (post: Post) => Post | null
   ) => {
     queryClient.setQueryData<InfiniteData<FeedResponse>>(
-      ["community-feed"],
+      ["posts", communityId],
       (old) => {
         if (!old) return old;
         return {
@@ -117,9 +155,9 @@ export function useCommunity() {
   const createPostMutation = useMutation({
     mutationFn: communityApi.createPost,
     onMutate: async (newPost) => {
-      await queryClient.cancelQueries({ queryKey: ["community-feed"] });
+      await queryClient.cancelQueries({ queryKey: ["posts", communityId] });
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
-        ["community-feed"]
+        ["posts", communityId]
       );
 
       if (user?.profile) {
@@ -142,10 +180,11 @@ export function useCommunity() {
             followers_count: 0,
             following_count: 0,
           },
+          community_id: newPost.community_id || communityId || null,
         };
 
         queryClient.setQueryData<InfiniteData<FeedResponse>>(
-          ["community-feed"],
+          ["posts", communityId],
           (old) => {
             if (!old) return old;
             return {
@@ -164,63 +203,127 @@ export function useCommunity() {
     },
     onError: (err, newPost, context) => {
       if (context?.previousFeed) {
-        queryClient.setQueryData(["community-feed"], context.previousFeed);
+        queryClient.setQueryData(["posts", communityId], context.previousFeed);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["community-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["posts", communityId] });
     },
   });
 
   const likePostMutation = useMutation({
-    mutationFn: communityApi.likePost,
+    mutationFn: async (postId: string) => {
+      // Check if this post already has a pending mutation
+      if (pendingLikeMutations.current.has(postId)) {
+        throw new Error("MUTATION_IN_PROGRESS");
+      }
+      pendingLikeMutations.current.add(postId);
+      return communityApi.likePost(postId);
+    },
     onMutate: async (postId) => {
-      await queryClient.cancelQueries({ queryKey: ["community-feed"] });
+      await queryClient.cancelQueries({ queryKey: ["posts", communityId] });
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
-        ["community-feed"]
+        ["posts", communityId]
       );
 
-      updateFeedPost(postId, (post) => ({
-        ...post,
-        has_liked: true,
-        likes_count: (post.likes_count || 0) + 1,
-      }));
+      // Optimistic update - instant feedback like Instagram/Facebook
+      updateFeedPost(postId, (post) => {
+        if (post.has_liked) return post;
+        return {
+          ...post,
+          has_liked: true,
+          likes_count: (post.likes_count || 0) + 1, // Instant count update
+        };
+      });
 
       return { previousFeed };
     },
-    onError: (err, postId, context) => {
-      if (context?.previousFeed) {
-        queryClient.setQueryData(["community-feed"], context.previousFeed);
+    onSuccess: (response, postId) => {
+      // Sync with server-authoritative count (corrects any drift)
+      if (response && typeof response.likes_count === "number") {
+        updateFeedPost(postId, (post) => ({
+          ...post,
+          has_liked: true,
+          likes_count: response.likes_count,
+        }));
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["community-feed"] });
+    onError: (err, postId, context) => {
+      // Don't rollback if mutation was blocked (already in progress)
+      if (err instanceof Error && err.message === "MUTATION_IN_PROGRESS") {
+        return;
+      }
+      // Rollback to previous state on error
+      if (context?.previousFeed) {
+        queryClient.setQueryData(["posts", communityId], context.previousFeed);
+      }
+    },
+    onSettled: (_, __, postId) => {
+      // Always release the lock
+      pendingLikeMutations.current.delete(postId);
+      // Don't invalidate immediately - trust optimistic update
+      // Only refetch in background after a delay to avoid UI flicker
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["posts", communityId] });
+      }, 1000);
     },
   });
 
   const unlikePostMutation = useMutation({
-    mutationFn: communityApi.unlikePost,
+    mutationFn: async (postId: string) => {
+      // Check if this post already has a pending mutation
+      if (pendingLikeMutations.current.has(postId)) {
+        throw new Error("MUTATION_IN_PROGRESS");
+      }
+      pendingLikeMutations.current.add(postId);
+      return communityApi.unlikePost(postId);
+    },
     onMutate: async (postId) => {
-      await queryClient.cancelQueries({ queryKey: ["community-feed"] });
+      await queryClient.cancelQueries({ queryKey: ["posts", communityId] });
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
-        ["community-feed"]
+        ["posts", communityId]
       );
 
-      updateFeedPost(postId, (post) => ({
-        ...post,
-        has_liked: false,
-        likes_count: Math.max(0, (post.likes_count || 0) - 1),
-      }));
+      // Optimistic update - instant feedback like Instagram/Facebook
+      updateFeedPost(postId, (post) => {
+        if (!post.has_liked) return post;
+        return {
+          ...post,
+          has_liked: false,
+          likes_count: Math.max(0, (post.likes_count || 1) - 1), // Instant count update, never go below 0
+        };
+      });
 
       return { previousFeed };
     },
-    onError: (err, postId, context) => {
-      if (context?.previousFeed) {
-        queryClient.setQueryData(["community-feed"], context.previousFeed);
+    onSuccess: (response, postId) => {
+      // Sync with server-authoritative count (corrects any drift)
+      if (response && typeof response.likes_count === "number") {
+        updateFeedPost(postId, (post) => ({
+          ...post,
+          has_liked: false,
+          likes_count: response.likes_count,
+        }));
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["community-feed"] });
+    onError: (err, postId, context) => {
+      // Don't rollback if mutation was blocked (already in progress)
+      if (err instanceof Error && err.message === "MUTATION_IN_PROGRESS") {
+        return;
+      }
+      // Rollback to previous state on error
+      if (context?.previousFeed) {
+        queryClient.setQueryData(["posts", communityId], context.previousFeed);
+      }
+    },
+    onSettled: (_, __, postId) => {
+      // Always release the lock
+      pendingLikeMutations.current.delete(postId);
+      // Don't invalidate immediately - trust optimistic update
+      // Only refetch in background after a delay to avoid UI flicker
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["posts", communityId] });
+      }, 1000);
     },
   });
 
@@ -268,7 +371,7 @@ export function useCommunity() {
         previousComments,
         postId,
         previousFeed: queryClient.getQueryData<InfiniteData<FeedResponse>>([
-          "community-feed",
+          "posts",
         ]),
       };
     },
@@ -280,23 +383,23 @@ export function useCommunity() {
         );
       }
       if (context?.previousFeed) {
-        queryClient.setQueryData(["community-feed"], context.previousFeed);
+        queryClient.setQueryData(["posts"], context.previousFeed);
       }
     },
     onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["comments", variables.postId],
       });
-      queryClient.invalidateQueries({ queryKey: ["community-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
     },
   });
 
   const deletePostMutation = useMutation({
     mutationFn: communityApi.deletePost,
     onMutate: async (postId) => {
-      await queryClient.cancelQueries({ queryKey: ["community-feed"] });
+      await queryClient.cancelQueries({ queryKey: ["posts"] });
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
-        ["community-feed"]
+        ["posts"]
       );
 
       updateFeedPost(postId, () => null); // null will filter it out
@@ -305,11 +408,11 @@ export function useCommunity() {
     },
     onError: (err, postId, context) => {
       if (context?.previousFeed) {
-        queryClient.setQueryData(["community-feed"], context.previousFeed);
+        queryClient.setQueryData(["posts"], context.previousFeed);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["community-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
     },
   });
 
@@ -317,14 +420,14 @@ export function useCommunity() {
     mutationFn: communityApi.deleteComment,
     onMutate: async ({ postId, commentId }) => {
       await queryClient.cancelQueries({ queryKey: ["comments", postId] });
-      await queryClient.cancelQueries({ queryKey: ["community-feed"] });
+      await queryClient.cancelQueries({ queryKey: ["posts"] });
 
       const previousComments = queryClient.getQueryData<Comment[]>([
         "comments",
         postId,
       ]);
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
-        ["community-feed"]
+        ["posts"]
       );
 
       queryClient.setQueryData<Comment[]>(["comments", postId], (old) =>
@@ -347,14 +450,14 @@ export function useCommunity() {
         );
       }
       if (context?.previousFeed) {
-        queryClient.setQueryData(["community-feed"], context.previousFeed);
+        queryClient.setQueryData(["posts"], context.previousFeed);
       }
     },
     onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["comments", variables.postId],
       });
-      queryClient.invalidateQueries({ queryKey: ["community-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
     },
   });
 
@@ -433,9 +536,183 @@ export function useCommunity() {
   });
 
   const editCommentMutation = useMutation({
-    mutationFn: communityApi.editComment,
-    onSuccess: () => {
-      // queryClient.invalidateQueries({ queryKey: ["comments"] });
+    mutationFn: (vars: {
+      commentId: string;
+      content: string;
+      postId: string;
+    }) => communityApi.editComment(vars),
+    onMutate: async ({ commentId, content, postId }) => {
+      await queryClient.cancelQueries({ queryKey: ["comments", postId] });
+      const previousComments = queryClient.getQueryData<Comment[]>([
+        "comments",
+        postId,
+      ]);
+
+      queryClient.setQueryData<Comment[]>(["comments", postId], (old) =>
+        old?.map((c) =>
+          c.id === commentId ? { ...c, content, is_edited: true } : c
+        )
+      );
+
+      return { previousComments, postId };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousComments) {
+        queryClient.setQueryData(
+          ["comments", context.postId],
+          context.previousComments
+        );
+      }
+    },
+    onSettled: (_, __, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["comments", variables.postId],
+      });
+    },
+  });
+
+  // --- Community Management Mutations ---
+  const createCommunityMutation = useMutation({
+    mutationFn: communityApi.createCommunity,
+    onMutate: async (newCommunityData) => {
+      await queryClient.cancelQueries({ queryKey: ["communities", "joined"] });
+      const previousJoined = queryClient.getQueryData<{
+        success: boolean;
+        data: CommunityMember[];
+      }>(["communities", "joined"]);
+
+      if (user?.id) {
+        const optimisticCommunity: Community = {
+          id: `temp-community-${Date.now()}`,
+          name: newCommunityData.name,
+          description: newCommunityData.description,
+          banner_url: newCommunityData.banner_url,
+          privacy: newCommunityData.privacy || "public",
+          category: newCommunityData.category || "General",
+          members_count: 1,
+          creator_id: user.id,
+          created_at: new Date().toISOString(),
+        };
+
+        const optimisticMembership: CommunityMember = {
+          community_id: optimisticCommunity.id,
+          user_id: user.id,
+          role: "admin",
+          joined_at: new Date().toISOString(),
+          community: optimisticCommunity,
+        };
+
+        queryClient.setQueryData<{ success: boolean; data: CommunityMember[] }>(
+          ["communities", "joined"],
+          (old) => ({
+            success: true,
+            data: [optimisticMembership, ...(old?.data || [])],
+          })
+        );
+      }
+
+      return { previousJoined };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousJoined) {
+        queryClient.setQueryData(
+          ["communities", "joined"],
+          context.previousJoined
+        );
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["communities", "joined"] });
+      queryClient.invalidateQueries({ queryKey: ["communities", "discover"] });
+    },
+  });
+
+  const joinCommunityMutation = useMutation({
+    mutationFn: communityApi.joinCommunity,
+    onMutate: async (communityId) => {
+      await queryClient.cancelQueries({ queryKey: ["communities", "joined"] });
+      const previousJoined = queryClient.getQueryData<{
+        success: boolean;
+        data: CommunityMember[];
+      }>(["communities", "joined"]);
+
+      // We need the full community object to be optimistic, but usually we just have ID.
+      // If we're lucky, it's in the discover cache.
+      const discoverData = queryClient.getQueryData<{
+        success: boolean;
+        data: Community[];
+      }>(["communities", "discover", undefined]);
+      const fullCommunity = discoverData?.data.find(
+        (c) => c.id === communityId
+      );
+
+      if (user?.id && fullCommunity) {
+        const optimisticMembership: CommunityMember = {
+          community_id: communityId,
+          user_id: user.id,
+          role: "member",
+          joined_at: new Date().toISOString(),
+          community: {
+            ...fullCommunity,
+            members_count: (fullCommunity.members_count || 0) + 1,
+          },
+        };
+
+        queryClient.setQueryData<{ success: boolean; data: CommunityMember[] }>(
+          ["communities", "joined"],
+          (old) => ({
+            success: true,
+            data: [...(old?.data || []), optimisticMembership],
+          })
+        );
+      }
+
+      return { previousJoined };
+    },
+    onError: (err, communityId, context) => {
+      if (context?.previousJoined) {
+        queryClient.setQueryData(
+          ["communities", "joined"],
+          context.previousJoined
+        );
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["communities", "joined"] });
+      queryClient.invalidateQueries({ queryKey: ["communities", "discover"] });
+    },
+  });
+
+  const leaveCommunityMutation = useMutation({
+    mutationFn: communityApi.leaveCommunity,
+    onMutate: async (communityId) => {
+      await queryClient.cancelQueries({ queryKey: ["communities", "joined"] });
+      const previousJoined = queryClient.getQueryData<{
+        success: boolean;
+        data: CommunityMember[];
+      }>(["communities", "joined"]);
+
+      queryClient.setQueryData<{ success: boolean; data: CommunityMember[] }>(
+        ["communities", "joined"],
+        (old) => ({
+          success: true,
+          data: old?.data.filter((m) => m.community_id !== communityId) || [],
+        })
+      );
+
+      return { previousJoined };
+    },
+    onError: (err, communityId, context) => {
+      if (context?.previousJoined) {
+        queryClient.setQueryData(
+          ["communities", "joined"],
+          context.previousJoined
+        );
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["communities", "joined"] });
+      queryClient.invalidateQueries({ queryKey: ["communities", "discover"] });
     },
   });
 
@@ -481,6 +758,11 @@ export function useCommunity() {
     }
   };
 
+  // Helper to check if a specific post has a pending like/unlike mutation
+  const isPostLikePending = useCallback((postId: string) => {
+    return pendingLikeMutations.current.has(postId);
+  }, []);
+
   return {
     // Feed
     feed,
@@ -498,7 +780,10 @@ export function useCommunity() {
 
     // Like/Unlike
     likePost: likePostMutation.mutateAsync,
+    isLikingPost: likePostMutation.isPending,
     unlikePost: unlikePostMutation.mutateAsync,
+    isUnlikingPost: unlikePostMutation.isPending,
+    isPostLikePending, // Per-post pending check
 
     // Comments
     addComment: addCommentMutation.mutateAsync,
@@ -512,6 +797,11 @@ export function useCommunity() {
     deletePost: deletePostMutation.mutateAsync,
     isDeletingPost: deletePostMutation.isPending,
 
+    // Community management
+    createCommunity: createCommunityMutation.mutateAsync,
+    joinCommunity: joinCommunityMutation.mutateAsync,
+    leaveCommunity: leaveCommunityMutation.mutateAsync,
+
     // Helpers
     uploadImage,
   };
@@ -522,5 +812,35 @@ export function usePostComments(postId: string) {
     queryKey: ["comments", postId],
     queryFn: () => communityApi.getComments(postId),
     enabled: !!postId,
+    staleTime: 1000 * 60 * 2, // 2 minutes
+    gcTime: 1000 * 60 * 10, // 10 minutes
+  });
+}
+
+export function useJoinedCommunities() {
+  return useQuery<{ success: boolean; data: CommunityMember[] }>({
+    queryKey: ["communities", "joined"],
+    queryFn: communityApi.getJoinedCommunities,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 60 * 24, // 24 hours for persistence
+  });
+}
+
+export function useDiscoverCommunities(category?: string) {
+  return useQuery<{ success: boolean; data: Community[] }>({
+    queryKey: ["communities", "discover", category],
+    queryFn: () => communityApi.getDiscoverCommunities(category),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 30, // 30 minutes
+  });
+}
+
+export function useCommunityDetail(communityId: string) {
+  return useQuery<{ success: boolean; data: Community }>({
+    queryKey: ["communities", "detail", communityId],
+    queryFn: () => communityApi.getCommunityById(communityId),
+    enabled: !!communityId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 30, // 30 minutes
   });
 }

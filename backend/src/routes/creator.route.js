@@ -17,9 +17,9 @@ router.get("/verification-status", auth, getVerificationStatus);
 
 router.get("/stats/:id", auth, getCreatorStats);
 
-router.get("/profile/:id", auth, getCreatorProfile);
-router.put("/profile/:id", auth, updateCreatorProfile);
+// router.get("/profile/:id", auth, getCreatorProfile);
+// router.put("/profile/:id", auth, updateCreatorProfile);
 
-router.delete("/profile/:id", auth, deleteCreatorProfile);
+// router.delete("/profile/:id", auth, deleteCreatorProfile);
 
 export default router;
