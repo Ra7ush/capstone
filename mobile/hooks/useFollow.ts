@@ -32,7 +32,7 @@ export function useFollow(userId?: string) {
         "following",
         userId,
       ]);
-      const previousPosts = queryClient.getQueryData(["posts"]);
+      const previousPosts = queryClient.getQueriesData({ queryKey: ["posts"] });
 
       // 3. Optimistically patch the "posts" feed (Level 4)
       // Every post from this creator should now show "Following"
@@ -69,7 +69,9 @@ export function useFollow(userId?: string) {
         );
       }
       if (context?.previousPosts) {
-        queryClient.setQueryData(["posts"], context.previousPosts);
+        context.previousPosts.forEach(([key, data]) => {
+          queryClient.setQueryData(key, data);
+        });
       }
     },
     onSettled: () => {

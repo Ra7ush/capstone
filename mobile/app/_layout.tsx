@@ -123,10 +123,12 @@ function RealtimeSync() {
           schema: "public",
         },
         async (payload) => {
-          console.log(
-            "🔥 RAW REALTIME PAYLOAD:",
-            JSON.stringify(payload, null, 2)
-          );
+          if (__DEV__) {
+            console.log(
+              "🔥 RAW REALTIME PAYLOAD:",
+              JSON.stringify(payload, null, 2)
+            );
+          }
           const { table, eventType, new: newRecord, old: oldRecord } = payload;
           const record = newRecord as any;
           const old = oldRecord as any;
@@ -163,16 +165,17 @@ function RealtimeSync() {
           // 2. Patch Collection Caches (Infinite Lists / Feeds)
           queryClient.setQueriesData({ queryKey: [table] }, (oldData: any) => {
             if (!oldData) return oldData;
-
             // Handle Infinite Data structure
             if (oldData.pages) {
               return {
                 ...oldData,
-                pages: oldData.pages.map((page: any) => ({
+                pages: oldData.pages.map((page: any, index: number) => ({
                   ...page,
                   data:
                     eventType === "INSERT"
-                      ? [record, ...(page.data || [])]
+                      ? index === 0
+                        ? [record, ...(page.data || [])]
+                        : page.data
                       : eventType === "DELETE"
                         ? page.data?.filter((item: any) => item.id !== recordId)
                         : page.data?.map((item: any) =>

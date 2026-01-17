@@ -25,13 +25,15 @@ END $$;
 -- 2. Create the Atomic Handler
 -- This function handles the entire like/unlike lifecycle in ONE transaction.
 -- It returns the FINAL authoritative count and the new state.
+DROP FUNCTION IF EXISTS handle_post_like(uuid, uuid, text);
+
 CREATE OR REPLACE FUNCTION handle_post_like(
     p_post_id UUID,
     p_user_id UUID,
     p_action TEXT
 )
 RETURNS TABLE (
-    new_likes_count BIGINT,
+    new_likes_count INTEGER,
     new_has_liked BOOLEAN
 ) AS $$
 BEGIN
@@ -62,8 +64,11 @@ BEGIN
     RETURN QUERY
     SELECT
         likes_count,
-        EXISTS(SELECT 1 FROM post_likes WHERE post_id = p_post_id AND user_id = p_user_id)
+        EXISTS(
+          SELECT 1 FROM public.post_likes
+          WHERE post_id = p_post_id AND user_id = p_user_id
+        )
     FROM public.posts
     WHERE id = p_post_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

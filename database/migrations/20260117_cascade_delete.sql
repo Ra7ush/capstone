@@ -1,6 +1,24 @@
 -- ==========================================
 -- CASCADE DELETE MIGRATION
 -- ==========================================
+--
+-- RATIONALE: Changed from ON DELETE SET NULL to ON DELETE CASCADE
+--
+-- Previous behavior (SET NULL): When a community was deleted, posts would
+-- remain but lose their community association (community_id = NULL).
+--
+-- New behavior (CASCADE): When a community is deleted, ALL posts belonging
+-- to that community are permanently deleted.
+--
+-- This change was made because:
+-- 1. Posts are inherently tied to their community context and have no meaning outside it
+-- 2. Orphaned posts (with NULL community_id) create data integrity issues
+-- 3. Community deletion is an intentional action that should clean up all related content
+-- 4. This aligns with how community_members already handles deletion (CASCADE)
+--
+-- WARNING: This is a destructive operation. Ensure proper confirmation dialogs
+-- exist in the application before allowing community deletion.
+-- ==========================================
 
 -- 1. Identify the existing foreign key constraint on the posts table
 -- Note: In Supabase/PostgreSQL, we need to drop the existing constraint by name.

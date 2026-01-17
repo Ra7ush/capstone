@@ -9,7 +9,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuthState } from "@/hooks/useAuthState";
 import {
   useUser,
@@ -22,7 +22,14 @@ export default function CommunityProfileEdit() {
   const { session } = useAuthState();
   const { data: creatorProfile } = useCreatorProfile(session?.user?.id || "");
 
-  const [bio, setBio] = useState(creatorProfile?.bio || "");
+  const [bio, setBio] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
+  useEffect(() => {
+    if (!isDirty && creatorProfile?.bio !== undefined) {
+      setBio(creatorProfile?.bio ?? "");
+    }
+  }, [creatorProfile?.bio, isDirty]);
+
   const { mutateAsync: updateProfile, isPending: loading } = useUpdateProfile();
 
   const handleSave = async () => {
@@ -86,7 +93,10 @@ export default function CommunityProfileEdit() {
                 </Text>
                 <TextInput
                   value={bio}
-                  onChangeText={setBio}
+                  onChangeText={(text) => {
+                    setBio(text);
+                    setIsDirty(true);
+                  }}
                   className="bg-white rounded-[2rem] p-4 font-bold text-black border border-gray-100"
                   placeholder="Tell the community about yourself"
                   placeholderTextColor="#d3d7ddff"

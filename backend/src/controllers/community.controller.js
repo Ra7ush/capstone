@@ -80,9 +80,14 @@ export async function createCommunity(req, res) {
         user_id: userId,
         role: "admin",
       });
-
     if (memberError) {
       console.error("Error joining creator to community:", memberError);
+      // Rollback: delete the community
+      await supabase.from("communities").delete().eq("id", community.id);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to initialize community membership",
+      });
     }
 
     return res.status(201).json({ success: true, data: community });
@@ -170,18 +175,23 @@ export async function joinCommunity(req, res) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
-    const { error } = await supabase.from("community_members").insert({
-      community_id: id,
-      user_id: userId,
-      role: "member",
+    // Use atomic RPC function to handle insert + increment in a transaction
+    const { data, error } = await supabase.rpc("join_community_atomic", {
+      p_community_id: id,
+      p_user_id: userId,
     });
 
     if (error) {
       return res.status(500).json({ success: false, error: error.message });
     }
 
-    // Increment members_count
-    await supabase.rpc("increment_community_members", { community_row_id: id });
+    // Check the result from the atomic function
+    if (data && !data.success) {
+      if (data.error === "already_member") {
+        return res.status(409).json({ success: false, error: data.message });
+      }
+      return res.status(400).json({ success: false, error: data.message });
+    }
 
     return res.status(200).json({ success: true, message: "Joined community" });
   } catch (error) {
@@ -198,18 +208,37 @@ export async function leaveCommunity(req, res) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
-    const { error } = await supabase
-      .from("community_members")
-      .delete()
-      .eq("community_id", id)
-      .eq("user_id", userId);
+    // Prevent creator from leaving their own community
+    const { data: community } = await supabase
+      .from("communities")
+      .select("creator_id")
+      .eq("id", id)
+      .single();
+    if (community?.creator_id === userId) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Community creator cannot leave. Transfer ownership or delete the community.",
+      });
+    }
+
+    // Use atomic RPC function to handle delete + decrement in a transaction
+    const { data, error } = await supabase.rpc("leave_community_atomic", {
+      p_community_id: id,
+      p_user_id: userId,
+    });
 
     if (error) {
       return res.status(500).json({ success: false, error: error.message });
     }
 
-    // Decrement members_count
-    await supabase.rpc("decrement_community_members", { community_row_id: id });
+    // Check the result from the atomic function
+    if (data && !data.success) {
+      if (data.error === "not_member") {
+        return res.status(404).json({ success: false, error: data.message });
+      }
+      return res.status(400).json({ success: false, error: data.message });
+    }
 
     return res.status(200).json({ success: true, message: "Left community" });
   } catch (error) {
@@ -516,7 +545,22 @@ export async function likePost(req, res) {
           .from("post_likes")
           .insert({ post_id, user_id });
 
-        if (insertError && insertError.code !== "23505") throw insertError;
+        if (insertError) {
+          if (insertError.code === "23505") {
+            // Already liked - return current state without incrementing
+            const { count: likesCount } = await supabase
+              .from("post_likes")
+              .select("*", { count: "exact", head: true })
+              .eq("post_id", post_id);
+            return res.status(200).json({
+              success: true,
+              message: "Already liked",
+              likes_count: likesCount || 0,
+              has_liked: true,
+            });
+          }
+          throw insertError;
+        }
 
         console.log("[DEBUG] Calling increment_likes fallback...");
         await supabase.rpc("increment_likes", { post_id });

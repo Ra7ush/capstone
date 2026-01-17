@@ -138,13 +138,14 @@ export async function searchProfiles(req, res) {
       return res.status(200).json({ success: true, data: [] });
     }
 
+    const escapedQ = q.replace(/[%_\\]/g, "\\$&");
+
     const { data, error } = await supabase
       .from("users")
       .select("id, username, full_name, role, profile_image_url")
-      .or(`username.ilike.%${q}%,full_name.ilike.%${q}%`)
+      .or(`username.ilike.%${escapedQ}%,full_name.ilike.%${escapedQ}%`)
       .neq("id", req.user.id) // Don't include self
       .limit(10);
-
     if (error) {
       console.error("Supabase error in searchProfiles:", error);
       throw error;

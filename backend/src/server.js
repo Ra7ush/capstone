@@ -16,7 +16,7 @@ const app = express();
 
 // ============ Request Logger ============
 app.use((req, res, next) => {
-  console.log(`[REQUEST] ${req.method} ${req.url}`);
+  console.log(`[REQUEST] ${req.method} ${req.path}`);
   next();
 });
 
@@ -55,7 +55,7 @@ app.use(
   cors({
     origin: ENV.ALLOWED_ORIGINS?.split(",") || "http://localhost:5173",
     credentials: true,
-  }),
+  })
 );
 
 // Limit request body size to prevent DoS
