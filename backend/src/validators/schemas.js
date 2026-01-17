@@ -77,9 +77,9 @@ export const dashboardQuerySchema = z.object({
 //============= Verification Schemas==========
 
 export const updateVerificationStatusSchema = z.object({
-  status: z.enum(["approved", "rejected"], {
+  status: z.enum(["verified", "rejected"], {
     errorMap: () => ({
-      message: "Status must be: approved or rejected",
+      message: "Status must be: verified or rejected",
     }),
   }),
   admin_notes: z

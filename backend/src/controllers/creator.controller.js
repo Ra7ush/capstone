@@ -157,10 +157,10 @@ export async function updateRequestStatus(req, res) {
     const { id } = params;
     const { status, admin_notes } = req.body;
 
-    if (!["approved", "rejected"].includes(status)) {
+    if (!["verified", "rejected"].includes(status)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid status. Must be 'approved' or 'rejected'.",
+        error: "Invalid status. Must be 'verified' or 'rejected'.",
       });
     }
 
@@ -184,7 +184,7 @@ export async function updateRequestStatus(req, res) {
       });
     }
 
-    // 2. If approved, the trigger `tr_on_verification_approval` (defined in SQL)
+    // 2. If verified, the trigger `tr_on_verification_approval` (defined in SQL)
     // will automatically update the `creators` table status.
 
     res.status(200).json({

@@ -14,12 +14,27 @@ import {
   likeComment,
   unlikeComment,
   editComment,
+  createCommunity,
+  getDiscoverCommunities,
+  getJoinedCommunities,
+  joinCommunity,
+  leaveCommunity,
+  getCommunityById,
 } from "../controllers/community.controller.js";
 
 const router = Router();
 
 router.use(auth);
 
+// Community management
+router.post("/", createCommunity);
+router.get("/discover", getDiscoverCommunities);
+router.get("/joined", getJoinedCommunities);
+router.post("/:id/join", joinCommunity);
+router.delete("/:id/leave", leaveCommunity);
+router.get("/:id", getCommunityById);
+
+// Post management
 router.post("/posts", createPost);
 router.get("/posts/feed", getFeed);
 router.get("/posts/:id", getPostById);

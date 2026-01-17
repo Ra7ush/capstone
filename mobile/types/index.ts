@@ -26,6 +26,7 @@ export interface User {
   role: UserRole;
   status: UserStatus;
   profile_image_url: string | null;
+  avatar_url?: string | null; // Alias used in community features
   followers_count: number;
   following_count: number;
   created_at: string;

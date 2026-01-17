@@ -8,10 +8,17 @@ import adminRouter from "./routes/admin.route.js";
 import creatorRouter from "./routes/creator.route.js";
 import communityRouter from "./routes/community.route.js";
 import followRouter from "./routes/follow.route.js";
+import profileRouter from "./routes/profile.route.js";
 
 const __dirname = path.resolve();
 
 const app = express();
+
+// ============ Request Logger ============
+app.use((req, res, next) => {
+  console.log(`[REQUEST] ${req.method} ${req.path}`);
+  next();
+});
 
 // ============ Security Middleware ============
 
@@ -21,7 +28,7 @@ app.use(helmet());
 // Rate limiting - general API protection
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // limit each IP to 1000 requests per windowMs (Higher for proactive sync)
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -70,6 +77,9 @@ app.use("/api/community", communityRouter);
 
 //Follow routes
 app.use("/api/follow", followRouter);
+
+// Profile routes
+app.use("/api/profile", profileRouter);
 
 // Creator routes
 app.use("/api/creator", creatorRouter);

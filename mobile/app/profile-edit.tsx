@@ -5,16 +5,18 @@ import {
   TouchableOpacity,
   TextInput,
 } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { useAuthState } from "@/hooks/useAuthState";
-import { useUpdateProfile } from "@/hooks/useUser";
+import { useUpdateProfile } from "@/hooks/useProfile";
 import { Alert } from "react-native";
 
 export default function ProfileEdit() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const mode = params.mode as string;
   const { user } = useAuthState();
   const profile = user?.profile;
 
@@ -23,13 +25,14 @@ export default function ProfileEdit() {
   const [bio, setBio] = useState(profile?.bio || "");
   const { mutateAsync: updateProfile, isPending: loading } = useUpdateProfile();
 
+  const isBioOnly = mode === "bio";
+
   const handleSave = async () => {
     if (!user?.id) return;
     try {
       await updateProfile({
-        userId: user.id,
-        full_name: fullName,
-        username: username,
+        full_name: isBioOnly ? undefined : fullName,
+        username: isBioOnly ? undefined : username,
         bio: bio,
       });
       router.back();
@@ -44,7 +47,7 @@ export default function ProfileEdit() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: "Personal Information",
+          title: isBioOnly ? "Edit Biography" : "Personal Information",
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} className="ml-2">
               <Ionicons name="chevron-back" size={24} color="black" />
@@ -77,63 +80,54 @@ export default function ProfileEdit() {
         <View className="px-6 py-8">
           <View className="mb-8">
             <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 px-1">
-              Basic Protocol
+              {isBioOnly ? "Your Story" : "Basic Protocol"}
             </Text>
 
             <View className="bg-gray-50 rounded-[2.5rem] p-4 border border-gray-100">
-              <View className="mb-6">
-                <Text className="text-gray-500 text-[10px] font-black uppercase mb-2 ml-4">
-                  Full Name
-                </Text>
-                <TextInput
-                  value={fullName}
-                  onChangeText={setFullName}
-                  className="bg-white rounded-[2rem] p-4 font-bold text-black border border-gray-100"
-                  placeholder="Enter your full name"
-                  placeholderTextColor="#d3d7ddff"
-                />
-              </View>
+              {!isBioOnly && (
+                <>
+                  <View className="mb-6">
+                    <Text className="text-gray-500 text-[10px] font-black uppercase mb-2 ml-4">
+                      Full Name
+                    </Text>
+                    <TextInput
+                      value={fullName}
+                      onChangeText={setFullName}
+                      className="bg-white rounded-[2rem] p-4 font-bold text-black border border-gray-100"
+                      placeholder="Enter your full name"
+                      placeholderTextColor="#d3d7ddff"
+                    />
+                  </View>
+
+                  <View className="mb-6">
+                    <Text className="text-gray-500 text-[10px] font-black uppercase mb-2 ml-4">
+                      Username
+                    </Text>
+                    <TextInput
+                      value={username}
+                      onChangeText={setUsername}
+                      className="bg-white rounded-[2rem] p-4 font-bold text-black border border-gray-100"
+                      placeholder="Enter username"
+                      placeholderTextColor="#d3d7ddff"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                </>
+              )}
 
               <View>
                 <Text className="text-gray-500 text-[10px] font-black uppercase mb-2 ml-4">
-                  Username
-                </Text>
-                <TextInput
-                  value={username}
-                  onChangeText={setUsername}
-                  className="bg-white rounded-[2rem] p-4 font-bold text-black border border-gray-100"
-                  placeholder="Enter username"
-                  placeholderTextColor="#d3d7ddff"
-                  autoCapitalize="none"
-                />
-              </View>
-            </View>
-          </View>
-
-          <View className="mb-8">
-            <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 px-1">
-              Identity Data
-            </Text>
-
-            <View className="bg-gray-50 rounded-[2.5rem] p-4 border border-gray-100">
-              <View>
-                <Text className="text-gray-500 text-[10px] font-black uppercase mb-2 ml-4">
-                  Professional Bio
+                  Biography
                 </Text>
                 <TextInput
                   value={bio}
                   onChangeText={setBio}
-                  className="bg-white rounded-[2rem] p-4 font-bold text-black border border-gray-100"
-                  placeholder="Tell the community about yourself"
+                  className="bg-white rounded-[2rem] p-6 font-bold text-black border border-gray-100 min-h-[160px]"
+                  placeholder="Tell the community about yourself..."
                   placeholderTextColor="#d3d7ddff"
                   multiline
-                  numberOfLines={4}
                   textAlignVertical="top"
-                  maxLength={500}
                 />
-                <Text className="text-[9px] text-gray-400 font-bold mt-2 mr-4 text-right uppercase">
-                  {bio.length} / 500
-                </Text>
               </View>
             </View>
           </View>
@@ -146,13 +140,13 @@ export default function ProfileEdit() {
                 color="black"
               />
               <Text className="font-black text-xs uppercase ml-2">
-                Identity Node
+                {isBioOnly ? "Community Presence" : "Identity Node"}
               </Text>
             </View>
             <Text className="text-gray-500 text-xs font-medium leading-relaxed">
-              Updating your identity parameters will synchronize across the
-              Nexus Protocol. Changes are permanent once committed to the secure
-              ledger.
+              {isBioOnly
+                ? "Your biography helps community members learn more about you. Keep it professional and engaging to build trust within the protocol."
+                : "Updating your identity parameters will synchronize across the Nexus Protocol. Changes are permanent once committed to the secure ledger."}
             </Text>
           </View>
         </View>
