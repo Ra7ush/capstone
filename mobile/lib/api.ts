@@ -66,7 +66,7 @@ api.interceptors.request.use(async (config) => {
 // Prefer using hooks instead of these directly
 // ============================================
 
-export const verificationApi = {
+export const creatorApi = {
   submitVerification: async (data: any) => {
     const response = await api.post("/api/creator/verify", data);
     return response.data;
@@ -74,6 +74,10 @@ export const verificationApi = {
   getStatus: async () => {
     const response = await api.get("/api/creator/verification-status");
     return response.data;
+  },
+  getStats: async (userId: string) => {
+    const response = await api.get(`/api/creator/stats/${userId}`);
+    return response.data.data;
   },
 };
 
@@ -163,13 +167,13 @@ export const communityApi = {
   },
   likeComment: async (commentId: string) => {
     const response = await api.post(
-      `/api/community/comments/${commentId}/like`
+      `/api/community/comments/${commentId}/like`,
     );
     return response.data;
   },
   unlikeComment: async (commentId: string) => {
     const response = await api.delete(
-      `/api/community/comments/${commentId}/like`
+      `/api/community/comments/${commentId}/like`,
     );
     return response.data;
   },
@@ -199,7 +203,7 @@ export const communityApi = {
     commentId: string;
   }) => {
     const response = await api.delete(
-      `/api/community/posts/${postId}/comments/${commentId}`
+      `/api/community/posts/${postId}/comments/${commentId}`,
     );
     return response.data;
   },
@@ -249,9 +253,38 @@ export const profileApi = {
   },
   markNotificationAsRead: async (notificationId: string) => {
     const response = await api.put(
-      `/api/profile/notifications/${notificationId}`
+      `/api/profile/notifications/${notificationId}`,
     );
     return response.data;
   },
 };
+export const messageApi = {
+  getConversations: async () => {
+    const response = await api.get("/api/message");
+    return response.data;
+  },
+  getMessages: async (conversationId: string) => {
+    const response = await api.get(`/api/message/${conversationId}`);
+    return response.data;
+  },
+  sendMessage: async (data: {
+    conversationId?: string;
+    receiverId?: string;
+    content: string;
+  }) => {
+    const response = await api.post("/api/message/send", data);
+    return response.data;
+  },
+  getOrCreateConversation: async (receiverId: string) => {
+    const response = await api.post("/api/message/get-or-create", {
+      receiverId,
+    });
+    return response.data;
+  },
+  markAsRead: async (conversationId: string) => {
+    const response = await api.put(`/api/message/${conversationId}/read`);
+    return response.data;
+  },
+};
+
 export default api;

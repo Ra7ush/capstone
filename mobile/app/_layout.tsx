@@ -42,18 +42,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
   const { isLoading, session, isEmailVerified, hasProfile } = useAuthState();
-  const initialCheckDone = useRef(false);
 
   useEffect(() => {
-    // Only run once per auth state change, not on every render
-    if (isLoading) {
-      initialCheckDone.current = false;
-      return;
-    }
-
-    // Skip if we've already done the initial check for this auth state
-    if (initialCheckDone.current) return;
-    initialCheckDone.current = true;
+    if (isLoading) return;
 
     // Hide splash screen
     SplashScreen.hideAsync();
@@ -126,7 +117,7 @@ function RealtimeSync() {
           if (__DEV__) {
             console.log(
               "🔥 RAW REALTIME PAYLOAD:",
-              JSON.stringify(payload, null, 2)
+              JSON.stringify(payload, null, 2),
             );
           }
           const { table, eventType, new: newRecord, old: oldRecord } = payload;
@@ -151,14 +142,17 @@ function RealtimeSync() {
               queryClient.setQueryData([table, recordUserId], record);
 
               // ALSO SPECIAL: Patch the flattened "users" profile cache
-              queryClient.setQueryData(["users", recordUserId], (old: any) => {
-                if (!old) return old;
-                return {
-                  ...old,
-                  bio: record.bio,
-                  verification_status: record.verification_status,
-                };
-              });
+              queryClient.setQueryData(
+                ["users", recordUserId],
+                (oldDetails: any) => {
+                  if (!oldDetails) return oldDetails;
+                  return {
+                    ...oldDetails,
+                    bio: record.bio,
+                    verification_status: record.verification_status,
+                  };
+                },
+              );
             }
           }
 
@@ -179,7 +173,9 @@ function RealtimeSync() {
                       : eventType === "DELETE"
                         ? page.data?.filter((item: any) => item.id !== recordId)
                         : page.data?.map((item: any) =>
-                            item.id === recordId ? { ...item, ...record } : item
+                            item.id === recordId
+                              ? { ...item, ...record }
+                              : item,
                           ),
                 })),
               };
@@ -191,7 +187,7 @@ function RealtimeSync() {
               if (eventType === "DELETE")
                 return oldData.filter((item: any) => item.id !== recordId);
               return oldData.map((item: any) =>
-                item.id === recordId ? { ...item, ...record } : item
+                item.id === recordId ? { ...item, ...record } : item,
               );
             }
 
@@ -208,20 +204,41 @@ function RealtimeSync() {
           }
 
           // 4. Force invalidation for relations (Safety Net)
-          if (eventType !== "UPDATE") {
-            queryClient.invalidateQueries({
-              queryKey: [table],
-              exact: false,
-              refetchType: "none",
-            });
-          }
-        }
+          queryClient.invalidateQueries({
+            queryKey: [table],
+            exact: false,
+          });
+        },
       )
+      .subscribe();
+
+    // 5. Global Notification Listener for Messages
+    const notificationChannel = supabase
+      .channel(`notifications:${userId}`)
+      .on("broadcast", { event: "new_message" }, ({ payload }) => {
+        console.log("🔔 [Global] New Message Notification!", payload);
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        if (payload.conversationId) {
+          queryClient.invalidateQueries({
+            queryKey: ["messages", payload.conversationId],
+          });
+        }
+      })
+      .on("broadcast", { event: "read_notification" }, ({ payload }) => {
+        console.log("👀 [Global] Messages Read Notification!", payload);
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        if (payload.conversationId) {
+          queryClient.invalidateQueries({
+            queryKey: ["messages", payload.conversationId],
+          });
+        }
+      })
       .subscribe();
 
     return () => {
       console.log("🔌 Stopping Level 3 Sync Engine");
       supabase.removeChannel(channel);
+      supabase.removeChannel(notificationChannel);
     };
   }, [userId, refresh, queryClient]);
 
@@ -229,6 +246,7 @@ function RealtimeSync() {
 }
 
 import { AuthProvider } from "@/context/AuthContext";
+import { PresenceProvider } from "@/context/PresenceContext";
 
 export default function RootLayout() {
   return (
@@ -239,7 +257,9 @@ export default function RootLayout() {
       <AuthProvider>
         <AuthGuard>
           <RealtimeSync />
-          <Stack screenOptions={{ headerShown: false }} />
+          <PresenceProvider>
+            <Stack screenOptions={{ headerShown: false }} />
+          </PresenceProvider>
         </AuthGuard>
       </AuthProvider>
     </PersistQueryClientProvider>

@@ -138,14 +138,22 @@ export async function searchProfiles(req, res) {
       return res.status(200).json({ success: true, data: [] });
     }
 
-    const escapedQ = q.replace(/[%_\\]/g, "\\$&");
+    const normalizedQ = q.startsWith("@") ? q.substring(1) : q;
+    const escapedQ = normalizedQ.replace(/[%_\\]/g, "\\$&");
+    console.log(
+      `[Search] Original: "${q}", Normalized: "${normalizedQ}", Current User: ${req.user.id}`,
+    );
 
     const { data, error } = await supabase
       .from("users")
       .select("id, username, full_name, role, profile_image_url")
-      .or(`username.ilike.%${escapedQ}%,full_name.ilike.%${escapedQ}%`)
+      .or(`username.ilike.*${escapedQ}*,full_name.ilike.*${escapedQ}*`)
       .neq("id", req.user.id) // Don't include self
       .limit(10);
+
+    console.log(`[Search] Found ${data?.length || 0} users for "${escapedQ}"`);
+    if (data)
+      console.log(`[Search] Result IDs: ${data.map((u) => u.id).join(", ")}`);
     if (error) {
       console.error("Supabase error in searchProfiles:", error);
       throw error;

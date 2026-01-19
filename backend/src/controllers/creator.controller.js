@@ -85,7 +85,7 @@ export async function getPendingRequests(req, res) {
           username,
           email
         )
-      `
+      `,
       )
       .eq("status", "pending")
       .order("created_at", { ascending: true });
@@ -132,7 +132,7 @@ export async function getPendingRequests(req, res) {
           id_back_url: signedBackUrl || verification.id_back_url,
           selfie_url: selfieData?.signedUrl || verification.selfie_url,
         };
-      })
+      }),
     );
 
     res.status(200).json({
@@ -236,7 +236,63 @@ export async function getVerificationStatus(req, res) {
  */
 export async function getCreatorStats(req, res) {
   try {
-  } catch (error) {}
+    const userId = req.user.id;
+
+    // 1. Get creator basic details and wallet balance
+    const { data: creator, error: creatorError } = await supabase
+      .from("creators")
+      .select("user_id, wallet_balance")
+      .eq("user_id", userId)
+      .single();
+
+    if (creatorError) {
+      if (creatorError.code === "PGRST116") {
+        return res
+          .status(404)
+          .json({ success: false, error: "Creator not found" });
+      }
+
+      console.error("Error fetching creator for stats:", creatorError);
+      return res
+        .status(500)
+        .json({ success: false, error: creatorError.message });
+    }
+
+    if (!creator) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Creator not found" });
+    }
+
+    // 2. Calculate pending payouts (pending + processing status)
+    const { data: payouts, error: payoutsError } = await supabase
+      .from("payouts")
+      .select("amount")
+      .eq("creator_id", creator.user_id)
+      .in("status", ["pending", "processing"]);
+
+    if (payoutsError) {
+      console.error("Error fetching payouts:", payoutsError);
+      throw payoutsError;
+    }
+
+    const pendingPayoutTotal = payouts.reduce(
+      (sum, p) => sum + parseFloat(p.amount),
+      0,
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        wallet_balance: parseFloat(creator.wallet_balance || 0),
+        pending_payout: pendingPayoutTotal,
+        currency: "USD",
+      },
+    });
+  } catch (error) {
+    console.error("Exception in getCreatorStats:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 }
 
 /**

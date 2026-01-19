@@ -61,7 +61,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const user = session.user;
+      const {
+        data: { user: freshUser },
+      } = await supabase.auth.getUser();
+      const user = freshUser || session.user;
       const isEmailVerified = !!user.email_confirmed_at;
       let hasProfile = false;
       let userProfile = null;
@@ -190,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           queryKey: ["communities", "detail", state.user.creatorCommunityId],
           queryFn: () =>
             communityApi.getCommunityById(
-              state.user.creatorCommunityId as string
+              state.user.creatorCommunityId as string,
             ),
         });
       }

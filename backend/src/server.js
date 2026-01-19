@@ -9,6 +9,7 @@ import creatorRouter from "./routes/creator.route.js";
 import communityRouter from "./routes/community.route.js";
 import followRouter from "./routes/follow.route.js";
 import profileRouter from "./routes/profile.route.js";
+import messageRouter from "./routes/message.route.js";
 
 const __dirname = path.resolve();
 
@@ -55,7 +56,7 @@ app.use(
   cors({
     origin: ENV.ALLOWED_ORIGINS?.split(",") || "http://localhost:5173",
     credentials: true,
-  })
+  }),
 );
 
 // Limit request body size to prevent DoS
@@ -80,6 +81,9 @@ app.use("/api/follow", followRouter);
 
 // Profile routes
 app.use("/api/profile", profileRouter);
+
+// Message routes
+app.use("/api/message", messageRouter);
 
 // Creator routes
 app.use("/api/creator", creatorRouter);
