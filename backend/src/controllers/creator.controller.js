@@ -246,7 +246,19 @@ export async function getCreatorStats(req, res) {
       .single();
 
     if (creatorError) {
+      if (creatorError.code === "PGRST116") {
+        return res
+          .status(404)
+          .json({ success: false, error: "Creator not found" });
+      }
+
       console.error("Error fetching creator for stats:", creatorError);
+      return res
+        .status(500)
+        .json({ success: false, error: creatorError.message });
+    }
+
+    if (!creator) {
       return res
         .status(404)
         .json({ success: false, error: "Creator not found" });

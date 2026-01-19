@@ -58,8 +58,10 @@ export default function ChatDetail() {
         sendTypingStatus(false);
       }, 3000);
     }
-  }, [message]);
-
+    return () => {
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    };
+  }, [message, isMeTyping, sendTypingStatus]);
   useEffect(() => {
     if (messages.length > 0 || isOtherUserTyping) {
       setTimeout(

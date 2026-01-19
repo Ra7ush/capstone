@@ -42,40 +42,44 @@ export const getConversations = async (req, res) => {
 
     if (convError) throw convError;
 
+    // Get unread counts for all conversations in one query
+    const { data: unreadCounts, error: unreadError } = await supabase
+      .from("messages")
+      .select("conversation_id")
+      .in("conversation_id", conversationIds)
+      .neq("sender_id", userId)
+      .eq("is_read", false);
+
+    if (unreadError) console.error("Error counting unread:", unreadError);
+
+    // Create a map of conversation_id -> unread count
+    const unreadCountMap = (unreadCounts || []).reduce((acc, msg) => {
+      acc[msg.conversation_id] = (acc[msg.conversation_id] || 0) + 1;
+      return acc;
+    }, {});
+
     // 3. Format data to return the "other" user, latest message, and unread count
-    const formattedConversations = await Promise.all(
-      conversations.map(async (conv) => {
-        const otherParticipant = conv.participants.find(
-          (p) => p.user.id !== userId,
-        );
+    const formattedConversations = conversations.map((conv) => {
+      const otherParticipant = conv.participants.find(
+        (p) => p.user.id !== userId,
+      );
 
-        // Get the single latest message
-        const lastMessage =
-          conv.last_message && conv.last_message.length > 0
-            ? conv.last_message.sort(
-                (a, b) => new Date(b.created_at) - new Date(a.created_at),
-              )[0]
-            : null;
+      // Get the single latest message
+      const lastMessage =
+        conv.last_message && conv.last_message.length > 0
+          ? conv.last_message.sort(
+              (a, b) => new Date(b.created_at) - new Date(a.created_at),
+            )[0]
+          : null;
 
-        // Count unread messages (where sender is NOT current user and is_read is false)
-        const { count: unreadCount, error: countError } = await supabase
-          .from("messages")
-          .select("*", { count: "exact", head: true })
-          .eq("conversation_id", conv.id)
-          .neq("sender_id", userId)
-          .eq("is_read", false);
-
-        if (countError) console.error("Error counting unread:", countError);
-
-        return {
-          id: conv.id,
-          last_message_at: conv.last_message_at,
-          other_user: otherParticipant?.user || null,
-          last_message: lastMessage,
-          unreadCount: unreadCount || 0,
-        };
-      }),
-    );
+      return {
+        id: conv.id,
+        last_message_at: conv.last_message_at,
+        other_user: otherParticipant?.user || null,
+        last_message: lastMessage,
+        unreadCount: unreadCountMap[conv.id] || 0,
+      };
+    });
 
     res.status(200).json({ success: true, data: formattedConversations });
   } catch (error) {
@@ -193,11 +197,16 @@ export const sendMessage = async (req, res) => {
 
     // 3. BROADCAST FALLBACK: Explicitly notify the other user via Realtime
     // This ensures delivery even if CDC is lagging.
-    await supabase.channel(`chat_room_${actualConversationId}`).send({
-      type: "broadcast",
-      event: "message",
-      payload: message,
-    });
+    try {
+      await supabase.channel(`chat_room_${actualConversationId}`).send({
+        type: "broadcast",
+        event: "message",
+        payload: message,
+      });
+    } catch (broadcastError) {
+      console.error("Broadcast to chat room failed:", broadcastError);
+      // Non-fatal: message is saved, CDC will eventually deliver
+    }
 
     // 4. SYSTEM-WIDE NOTIFICATION: Notify the recipient on their personal channel
     const { data: participants } = await supabase
@@ -268,6 +277,18 @@ export const markAsRead = async (req, res) => {
 
     if (!userId) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    // Verify user is a participant
+    const { data: participation, error: partError } = await supabase
+      .from("conversation_participants")
+      .select("user_id")
+      .eq("conversation_id", conversationId)
+      .eq("user_id", userId)
+      .single();
+
+    if (partError || !participation) {
+      return res.status(403).json({ success: false, error: "Access denied" });
     }
 
     // Update all messages in this conversation where the user is NOT the sender
