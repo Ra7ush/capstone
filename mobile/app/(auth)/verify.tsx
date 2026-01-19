@@ -13,11 +13,14 @@ import {
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuthState } from "@/hooks/useAuthState";
 
 export default function Verify() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const email = params.email as string;
+
+  const { refresh } = useAuthState();
 
   const [loading, setLoading] = useState(false);
   const [code, setCode] = useState("");
@@ -55,6 +58,9 @@ export default function Verify() {
       if (error) throw error;
 
       console.log("Verification success:", data);
+
+      // Force refresh auth state so the Guard picks it up immediately
+      await refresh();
 
       // Just show success - the AuthGuard will detect the verified state
       // and redirect to onboarding automatically

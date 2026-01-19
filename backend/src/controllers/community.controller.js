@@ -1,7 +1,5 @@
 import supabase from "../config/db.js";
 
-// ============ COMMUNITIES ============
-
 export async function createCommunity(req, res) {
   try {
     const { name, description, banner_url, privacy, category } = req.body;
@@ -12,6 +10,7 @@ export async function createCommunity(req, res) {
     }
 
     // 1. Check if user is a creator
+    // we do this check when user login or signup but for now we do this check here
     const { data: userData, error: userError } = await supabase
       .from("users")
       .select("role")
@@ -152,7 +151,7 @@ export async function getJoinedCommunities(req, res) {
     const { data, error } = await supabase
       .from("community_members")
       .select(
-        "role, joined_at, community:communities(*, creator:users(id, username))"
+        "role, joined_at, community:communities(*, creator:users(id, username))",
       )
       .eq("user_id", userId);
 
@@ -265,7 +264,7 @@ export async function getCommunityById(req, res) {
   }
 }
 
-// ============ POSTS ============
+// POSTS
 
 export async function createPost(req, res) {
   try {
@@ -322,7 +321,7 @@ export async function getFeed(req, res) {
       .from("posts")
       .select(
         "*, user:users(id, username, email, followers_count, following_count, creators(bio, verification_status)), community:communities(*)",
-        { count: "exact" }
+        { count: "exact" },
       );
 
     const isValidCommunityId =
@@ -510,7 +509,7 @@ export async function likePost(req, res) {
         p_post_id: post_id,
         p_user_id: user_id,
         p_action: "like",
-      }
+      },
     );
 
     if (!rpcError) {
@@ -614,7 +613,7 @@ export async function unlikePost(req, res) {
         p_post_id: post_id,
         p_user_id: user_id,
         p_action: "unlike",
-      }
+      },
     );
 
     if (!rpcError) {

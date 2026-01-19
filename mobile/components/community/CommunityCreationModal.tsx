@@ -37,6 +37,7 @@ export const CommunityCreationModal = ({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("General");
+  const [privacy, setPrivacy] = useState("public");
   const [banner, setBanner] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -96,7 +97,7 @@ export const CommunityCreationModal = ({
         name,
         description,
         category,
-        privacy: "public",
+        privacy,
         banner_url: bannerUrl,
       });
       setName("");
@@ -129,7 +130,7 @@ export const CommunityCreationModal = ({
           } else if (buttonIndex === 3) {
             await pickFromFiles();
           }
-        }
+        },
       );
     } else {
       await pickFromLibrary();
@@ -182,7 +183,7 @@ export const CommunityCreationModal = ({
       if (status !== "granted") {
         Alert.alert(
           "Permission Required",
-          "Please allow access to your photo library."
+          "Please allow access to your photo library.",
         );
         return;
       }
@@ -213,7 +214,7 @@ export const CommunityCreationModal = ({
           [
             { text: "Cancel", style: "cancel" },
             { text: "Browse Files", onPress: pickFromFiles },
-          ]
+          ],
         );
       } else {
         Alert.alert("Error", "Could not load the image. Please try again.");
@@ -284,12 +285,14 @@ export const CommunityCreationModal = ({
             <TextInput
               className="bg-gray-100 p-4 rounded-xl font-medium mb-3"
               placeholder="Community Name"
+              placeholderTextColor="#9CA3AF"
               value={name}
               onChangeText={setName}
             />
             <TextInput
               className="bg-gray-100 p-4 rounded-xl font-medium min-h-[80px] mb-3"
               placeholder="Description (optional)"
+              placeholderTextColor="#9CA3AF"
               multiline
               value={description}
               onChangeText={setDescription}
@@ -316,6 +319,34 @@ export const CommunityCreationModal = ({
                 </TouchableOpacity>
               ))}
             </ScrollView>
+
+            <Text className="text-gray-400 text-xs font-semibold mb-2 uppercase tracking-wider">
+              Privacy
+            </Text>
+            <View className="flex-row gap-2 mb-6">
+              {["public", "private"].map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  onPress={() => setPrivacy(p)}
+                  className={`flex-1 py-3 rounded-xl border ${privacy === p ? "bg-black border-black" : "bg-white border-gray-200"}`}
+                >
+                  <View className="items-center">
+                    <Ionicons
+                      name={
+                        p === "public" ? "globe-outline" : "lock-closed-outline"
+                      }
+                      size={20}
+                      color={privacy === p ? "white" : "#4B5563"}
+                    />
+                    <Text
+                      className={`font-bold mt-1 capitalize ${privacy === p ? "text-white" : "text-gray-600"}`}
+                    >
+                      {p}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
             <TouchableOpacity
               onPress={handleCreate}
               disabled={isSubmitting}

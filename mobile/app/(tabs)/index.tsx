@@ -4,6 +4,7 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -13,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { useState } from "react";
 import { useAuthState } from "@/hooks/useAuthState";
 import { useUser } from "@/hooks/useProfile";
+import { useCreatorStats } from "@/hooks/useCreator";
 
 export default function Home() {
   const router = useRouter();
@@ -22,20 +24,27 @@ export default function Home() {
     isLoading: isLoadingUser,
     refetch: refetchUser,
   } = useUser();
+  const {
+    data: stats,
+    isLoading: isLoadingStats,
+    refetch: refetchStats,
+  } = useCreatorStats();
   const [refreshing, setRefreshing] = useState(false);
 
   // Prioritize hook data (dbUser) over auth state, but fallback to authUser
   const profile = dbUser || authUser?.profile;
 
+  // Refreshing the page for the new data changes.
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refetchUser(), refreshAuth()]);
+      await Promise.all([refetchUser(), refreshAuth(), refetchStats()]);
     } finally {
       setRefreshing(false);
     }
   };
 
+  // Need to remove later.
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.replace("/(auth)/login");
@@ -155,14 +164,29 @@ export default function Home() {
                 <Text className="text-gray-400 text-xs font-black uppercase tracking-widest">
                   Wallet Balance
                 </Text>
-                <View className="bg-[#FF4D00] px-3 py-1 rounded-full">
-                  <Text className="text-white text-[10px] font-black uppercase">
-                    Available
-                  </Text>
+                <View className="flex-row items-center gap-2">
+                  <View className="bg-[#FF4D00] px-3 py-1 rounded-full">
+                    <Text className="text-white text-[10px] font-black uppercase">
+                      Available
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => refetchStats()}
+                    disabled={isLoadingStats || refreshing}
+                    className="w-6 h-6 items-center justify-center bg-white/20 rounded-full"
+                  >
+                    {isLoadingStats || refreshing ? (
+                      <ActivityIndicator size="small" color="white" />
+                    ) : (
+                      <Ionicons name="refresh" size={12} color="white" />
+                    )}
+                  </TouchableOpacity>
                 </View>
               </View>
               <Text className="text-white text-4xl font-black italic tracking-tighter mb-6">
-                $1,280.50
+                {stats
+                  ? `$${stats.wallet_balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : "$0.00"}
               </Text>
 
               <View className="flex-row items-center justify-between mb-4">
@@ -176,7 +200,9 @@ export default function Home() {
                 </View>
               </View>
               <Text className="text-white text-2xl font-black italic tracking-tighter">
-                $450.00
+                {stats
+                  ? `$${stats.pending_payout.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : "$0.00"}
               </Text>
 
               <View className="flex-row items-center mt-6 pt-6 border-t border-white/10">
@@ -256,7 +282,10 @@ export default function Home() {
               Quick Actions
             </Text>
 
-            <TouchableOpacity className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center mb-4 shadow-sm">
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)/community")}
+              className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center mb-4 shadow-sm"
+            >
               <View className="w-12 h-12 rounded-full bg-orange-50 items-center justify-center mr-4">
                 <Ionicons name="add-circle-outline" size={26} color="#FF4D00" />
               </View>
@@ -271,7 +300,10 @@ export default function Home() {
               <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
             </TouchableOpacity>
 
-            <TouchableOpacity className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center mb-4 shadow-sm">
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)/service")}
+              className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center mb-4 shadow-sm"
+            >
               <View className="w-12 h-12 rounded-full bg-blue-50 items-center justify-center mr-4">
                 <Ionicons name="briefcase-outline" size={24} color="#3B82F6" />
               </View>
@@ -286,31 +318,39 @@ export default function Home() {
               <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
             </TouchableOpacity>
 
-            <TouchableOpacity className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center mb-4 shadow-sm">
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)/message")}
+              className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center mb-4 shadow-sm"
+            >
               <View className="w-12 h-12 rounded-full bg-purple-50 items-center justify-center mr-4">
-                <Ionicons name="calendar-outline" size={24} color="#A855F7" />
+                <Ionicons
+                  name="chatbubbles-outline"
+                  size={24}
+                  color="#A855F7"
+                />
               </View>
               <View className="flex-1">
-                <Text className="text-black font-black text-lg">
-                  Schedule Event
-                </Text>
+                <Text className="text-black font-black text-lg">Messages</Text>
                 <Text className="text-gray-500 text-xs font-medium">
-                  Plan a live session or meetup
+                  Chat with your community
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
             </TouchableOpacity>
 
-            <TouchableOpacity className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center shadow-sm">
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)/profile")}
+              className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center shadow-sm"
+            >
               <View className="w-12 h-12 rounded-full bg-green-50 items-center justify-center mr-4">
-                <Ionicons name="bar-chart-outline" size={24} color="#10B981" />
+                <Ionicons name="person-outline" size={24} color="#10B981" />
               </View>
               <View className="flex-1">
                 <Text className="text-black font-black text-lg">
-                  View Analytics
+                  Edit Profile
                 </Text>
                 <Text className="text-gray-500 text-xs font-medium">
-                  Check your growth metrics
+                  Update your personal details
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />

@@ -14,7 +14,9 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { AVATARS, VERIFICATION_STATUS } from "@/constants";
+import * as ImagePicker from "expo-image-picker";
+import { AVATARS } from "@/constants";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 
 export default function Onboarding() {
   const router = useRouter();
@@ -23,7 +25,7 @@ export default function Onboarding() {
   const [email, setEmail] = useState<string | null>(null);
 
   const [username, setUsername] = useState("");
-  const [selectedAvatar, setSelectedAvatar] = useState<string>(AVATARS[0]);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isCreator, setIsCreator] = useState(false);
   const [bio, setBio] = useState("");
 
@@ -44,6 +46,70 @@ export default function Onboarding() {
     getUser();
   }, [router]);
 
+  const pickImage = async () => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please allow access to your photo library.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setProfileImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Could not load the image.");
+    }
+  };
+
+  const uploadProfileImage = async (uri: string) => {
+    try {
+      const manipResult = await manipulateAsync(
+        uri,
+        [{ resize: { width: 400, height: 400 } }],
+        { compress: 0.7, format: SaveFormat.JPEG },
+      );
+
+      const filePath = `profiles/${userId}/avatar_${Date.now()}.jpg`;
+      const formData = new FormData();
+      formData.append("file", {
+        uri: manipResult.uri,
+        name: `avatar_${Date.now()}.jpg`,
+        type: "image/jpeg",
+      } as any);
+
+      const { data, error } = await supabase.storage
+        .from("community")
+        .upload(filePath, formData, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+
+      if (error) throw error;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("community").getPublicUrl(data.path);
+
+      return publicUrl;
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      throw error;
+    }
+  };
+
   const handleComplete = async () => {
     if (!username.trim()) {
       Alert.alert("Error", "Please enter a username");
@@ -58,18 +124,24 @@ export default function Onboarding() {
 
     setLoading(true);
     try {
+      let finalAvatarUrl: string = AVATARS[0]; // Default fallback
+
+      if (profileImage) {
+        finalAvatarUrl = await uploadProfileImage(profileImage);
+      }
+
       // 1. Upsert into users table (insert or update if exists)
       const { error: userError } = await supabase.from("users").upsert(
         {
           id: userId,
           email: email,
-          password_hash: "supabase_auth_managed", // Placeholder - Supabase Auth handles passwords
+          password_hash: "supabase_auth_managed",
           username: username.trim(),
           role: isCreator ? "creator" : "user",
           status: "active",
-          profile_image_url: selectedAvatar,
+          profile_image_url: finalAvatarUrl,
         },
-        { onConflict: "id" }
+        { onConflict: "id" },
       );
 
       if (userError) {
@@ -90,7 +162,7 @@ export default function Onboarding() {
             user_id: userId,
             bio: bio.trim() || null,
           },
-          { onConflict: "user_id" }
+          { onConflict: "user_id" },
         );
 
         if (creatorError) throw creatorError;
@@ -107,7 +179,7 @@ export default function Onboarding() {
             onPress: () =>
               router.replace(isCreator ? "/verification-apply" : "/(tabs)"),
           },
-        ]
+        ],
       );
     } catch (error: any) {
       console.error("Onboarding error:", error);
@@ -151,30 +223,26 @@ export default function Onboarding() {
           </View>
         </View>
 
-        {/* Avatar Selection */}
-        <View className="mb-8">
-          <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">
-            Pick an Avatar
+        {/* Profile Image Selection */}
+        <View className="mb-8 items-center">
+          <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 w-full text-left">
+            Profile Image
           </Text>
-          <View style={styles.avatarGrid}>
-            {AVATARS.map((avatar, index) => (
-              <TouchableOpacity
-                key={index}
-                onPress={() => setSelectedAvatar(avatar)}
-                style={[
-                  styles.avatarItem,
-                  selectedAvatar === avatar && styles.avatarSelected,
-                ]}
-              >
-                <Image source={{ uri: avatar }} style={styles.avatarImage} />
-                {selectedAvatar === avatar && (
-                  <View style={styles.avatarCheck}>
-                    <Ionicons name="checkmark" size={14} color="white" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
+          <TouchableOpacity
+            onPress={pickImage}
+            className="w-32 h-32 rounded-full bg-gray-50 border-2 border-gray-100 items-center justify-center overflow-hidden"
+          >
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} className="w-full h-full" />
+            ) : (
+              <View className="items-center">
+                <Ionicons name="camera" size={32} color="#D1D5DB" />
+                <Text className="text-[10px] font-bold text-gray-400 mt-1">
+                  UPLOAD
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Creator Toggle */}
