@@ -328,7 +328,10 @@ export default function Message() {
                   >
                     {typingStates[conv.id]
                       ? "Typing..."
-                      : conv.last_message?.content || "Sent a message"}
+                      : conv.last_message?.content ||
+                        (conv.last_message?.image_urls?.length > 0
+                          ? "Sent a photo"
+                          : "Sent a message")}
                   </Text>
                   <Text className="text-[#8E8E8E] text-[13px] ml-1">
                     • {formatDate(conv.last_message_at)}

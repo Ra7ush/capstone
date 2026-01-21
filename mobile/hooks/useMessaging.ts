@@ -223,9 +223,9 @@ export function useChat(conversationId: string, userId?: string) {
 
   // Mutation to send a message with optimistic update
   const sendMessageMutation = useMutation({
-    mutationFn: (content: string) =>
-      messageApi.sendMessage({ conversationId, content }),
-    onMutate: async (content) => {
+    mutationFn: ({ content, images }: { content: string; images?: string[] }) =>
+      messageApi.sendMessage({ conversationId, content, images }),
+    onMutate: async ({ content, images }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({
         queryKey: ["messages", conversationId],
@@ -242,6 +242,7 @@ export function useChat(conversationId: string, userId?: string) {
         const optimisticMessage = {
           id: `temp-${Date.now()}`,
           content,
+          image_urls: images || [],
           sender_id: userId,
           created_at: new Date().toISOString(),
           conversation_id: conversationId,
@@ -286,6 +287,7 @@ export function useChat(conversationId: string, userId?: string) {
     otherUser,
     loadingMessages,
     sendMessage: sendMessageMutation.mutate,
+    sendMessageAsync: sendMessageMutation.mutateAsync,
     isSending: sendMessageMutation.isPending,
     markAsRead: markReadMutation.mutate,
     isOtherUserTyping,

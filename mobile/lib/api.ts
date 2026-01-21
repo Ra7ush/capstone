@@ -271,6 +271,7 @@ export const messageApi = {
     conversationId?: string;
     receiverId?: string;
     content: string;
+    images?: string[];
   }) => {
     const response = await api.post("/api/message/send", data);
     return response.data;

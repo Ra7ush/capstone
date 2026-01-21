@@ -135,11 +135,15 @@ function RealtimeSync() {
               queryClient.removeQueries({ queryKey: [table, recordUserId] });
             }
           } else {
-            queryClient.setQueryData([table, recordId], record);
+            queryClient.setQueryData([table, recordId], (old: any) =>
+              old ? { ...old, ...record } : record,
+            );
 
             // SPECIAL: If table is 'creators', also patch by 'user_id' key
             if (table === "creators" && recordUserId) {
-              queryClient.setQueryData([table, recordUserId], record);
+              queryClient.setQueryData([table, recordUserId], (oldData: any) =>
+                oldData ? { ...oldData, ...record } : record,
+              );
 
               // ALSO SPECIAL: Patch the flattened "users" profile cache
               queryClient.setQueryData(
