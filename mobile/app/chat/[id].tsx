@@ -8,6 +8,8 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  Dimensions,
+  FlatList,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -16,6 +18,14 @@ import { useState, useRef, useEffect } from "react";
 import { useChat, useMessaging } from "../../hooks/useMessaging";
 import { useAuthState } from "../../hooks/useAuthState";
 import { usePresence } from "../../hooks/usePresence";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
+import { supabase } from "@/lib/supabase";
+import { Image as ExpoImage } from "expo-image";
+import { decode } from "base64-arraybuffer";
+import { ImageViewer } from "../../components/ImageViewer";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function ChatDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -36,6 +46,12 @@ export default function ChatDetail() {
   const { isUserOnline } = usePresence();
   const scrollViewRef = useRef<ScrollView>(null);
   const router = useRouter();
+
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerImages, setViewerImages] = useState<{ uri: string }[]>([]);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   const isOnline = otherUser?.id ? isUserOnline(otherUser.id) : false;
 
@@ -79,10 +95,92 @@ export default function ChatDetail() {
     }
   }, [messages, isOtherUserTyping, user?.id]);
 
-  const handleSend = () => {
-    if (!message.trim()) return;
-    sendMessage(message.trim());
+  const pickImages = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: 5 - selectedImages.length,
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      const newImages = result.assets.map((asset) => asset.uri);
+      // Ensure we don't exceed 5 total
+      setSelectedImages((prev) => [...prev, ...newImages].slice(0, 5));
+    }
+  };
+
+  const uploadImages = async (uris: string[]) => {
+    setIsUploading(true);
+    const uploadedUrls: string[] = [];
+
+    try {
+      for (const uri of uris) {
+        // Convert HEIC/HEIF to JPEG using ImageManipulator
+        const manipulatedImage = await ImageManipulator.manipulateAsync(
+          uri,
+          [], // No transformations, just format conversion
+          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
+        );
+
+        const convertedUri = manipulatedImage.uri;
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+        const path = `chat_attachments/${user?.id}/${fileName}`;
+
+        const formData = new FormData();
+        formData.append("file", {
+          uri: convertedUri,
+          name: fileName,
+          type: "image/jpeg",
+        } as any);
+
+        const { data, error } = await supabase.storage
+          .from("community")
+          .upload(path, formData, {
+            cacheControl: "3600",
+            upsert: true,
+          });
+
+        if (error) throw error;
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("community").getPublicUrl(path);
+
+        uploadedUrls.push(publicUrl);
+      }
+      return uploadedUrls;
+    } catch (error) {
+      console.error("Error uploading images:", error);
+      throw error;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!message.trim() && selectedImages.length === 0) return;
+
+    let imageUrls: string[] = [];
+    const currentImages = [...selectedImages];
+
+    // Optimistically clear the UI states
+    const currentMsg = message.trim();
     setMessage("");
+    setSelectedImages([]);
+
+    if (currentImages.length > 0) {
+      try {
+        imageUrls = await uploadImages(currentImages);
+      } catch (error) {
+        // Rollback on upload error?
+        // For now just alert or log
+        console.error("Failed to upload some images");
+        return;
+      }
+    }
+
+    sendMessage({ content: currentMsg, images: imageUrls });
   };
 
   const getInitials = (name: string) => {
@@ -214,15 +312,118 @@ export default function ChatDetail() {
                     isMe
                       ? "bg-black rounded-t-3xl rounded-bl-3xl"
                       : "bg-gray-100 rounded-t-3xl rounded-br-3xl"
-                  }`}
+                  } ${msg.image_urls && msg.image_urls.length >= 1 ? "bg-transparent px-0 py-0" : ""}`}
                 >
-                  <Text
-                    className={`text-sm ${
-                      isMe ? "text-white" : "text-black"
-                    } font-medium leading-5`}
-                  >
-                    {msg.content}
-                  </Text>
+                  {msg.image_urls && msg.image_urls.length > 0 && (
+                    <View className="mb-2">
+                      {msg.image_urls.length === 1 ? (
+                        <TouchableOpacity
+                          onPress={() => {
+                            setViewerImages([{ uri: msg.image_urls[0] }]);
+                            setViewerIndex(0);
+                            setViewerVisible(true);
+                          }}
+                          className="w-64 h-64 rounded-2xl overflow-hidden"
+                        >
+                          <Image
+                            source={{ uri: msg.image_urls[0] }}
+                            className="w-full h-full"
+                          />
+                        </TouchableOpacity>
+                      ) : (
+                        <View className="items-center py-2">
+                          <Text className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">
+                            sent {msg.image_urls.length} photos
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setViewerImages(
+                                msg.image_urls.map((uri: string) => ({ uri })),
+                              );
+                              setViewerIndex(0);
+                              setViewerVisible(true);
+                            }}
+                            activeOpacity={0.9}
+                            className="relative w-52 h-64 items-center justify-center"
+                          >
+                            {/* Stacked cards - render bottom to top */}
+                            {msg.image_urls
+                              .slice(0, Math.min(msg.image_urls.length, 3))
+                              .map((img: string, i: number) => {
+                                const stackSize = Math.min(
+                                  msg.image_urls.length,
+                                  3,
+                                );
+                                // Reverse order: first item in array = bottom of stack
+                                const stackIndex = stackSize - 1 - i;
+
+                                // Rotation: back cards tilted, front card straight
+                                const rotations = [-6, 6, 0];
+                                const rotation = rotations[stackIndex] || 0;
+
+                                // Vertical offset: back cards slightly higher
+                                const yOffsets = [-16, -8, 0];
+                                const yOffset = yOffsets[stackIndex] || 0;
+
+                                // Horizontal offset for spread effect
+                                const xOffsets = [-12, 12, 0];
+                                const xOffset = xOffsets[stackIndex] || 0;
+
+                                // Shadow intensity
+                                const shadowOpacity =
+                                  stackIndex === stackSize - 1 ? 0.25 : 0.15;
+                                const isTopCard = stackIndex === stackSize - 1;
+
+                                return (
+                                  <View
+                                    key={i}
+                                    className="absolute w-44 h-56 rounded-3xl overflow-hidden"
+                                    style={{
+                                      transform: [
+                                        { rotate: `${rotation}deg` },
+                                        { translateY: yOffset },
+                                        { translateX: xOffset },
+                                      ],
+                                      zIndex: stackIndex,
+                                      shadowColor: "#000",
+                                      shadowOffset: { width: 0, height: 8 },
+                                      shadowOpacity: shadowOpacity,
+                                      shadowRadius: 16,
+                                      elevation: 8 + stackIndex * 2,
+                                      backgroundColor: "#fff",
+                                    }}
+                                  >
+                                    <Image
+                                      source={{ uri: img }}
+                                      className="w-full h-full"
+                                      style={{ resizeMode: "cover" }}
+                                    />
+                                    {/* Gradient overlay on top card */}
+                                    {isTopCard && (
+                                      <View
+                                        className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"
+                                        style={{
+                                          backgroundColor: "rgba(0,0,0,0.05)",
+                                        }}
+                                      />
+                                    )}
+                                  </View>
+                                );
+                              })}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                  {msg.content ? (
+                    <Text
+                      className={`text-sm ${
+                        isMe ? "text-white" : "text-black"
+                      } font-medium leading-5 ${msg.image_urls && msg.image_urls.length > 1 ? "bg-black p-4 rounded-3xl self-center mt-4" : ""}`}
+                    >
+                      {msg.content}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
               {index === messages.length - 1 && isMe && (
@@ -263,7 +464,39 @@ export default function ChatDetail() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
+        {selectedImages.length > 0 && (
+          <View className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex-row">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {selectedImages.map((uri, index) => (
+                <View key={index} className="mr-3 relative">
+                  <Image
+                    source={{ uri }}
+                    className="w-20 h-20 rounded-xl border border-gray-200"
+                  />
+                  <TouchableOpacity
+                    onPress={() =>
+                      setSelectedImages((prev) =>
+                        prev.filter((_, i) => i !== index),
+                      )
+                    }
+                    className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm border border-gray-100"
+                  >
+                    <Ionicons name="close-circle" size={20} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         <View className="px-4 pt-2 pb-8 bg-white border-t border-gray-100 flex-row items-end">
+          <TouchableOpacity
+            onPress={pickImages}
+            className="w-10 h-10 items-center justify-center mr-2 bg-gray-50 rounded-full"
+          >
+            <Ionicons name="image" size={22} color="#4B5563" />
+          </TouchableOpacity>
+
           <View className="flex-1 bg-gray-50 rounded-3xl px-4 py-2 flex-row items-end border border-gray-100">
             <TextInput
               placeholder="Type a message..."
@@ -273,23 +506,45 @@ export default function ChatDetail() {
               className="flex-1 text-black font-medium text-sm py-2 max-h-32"
               multiline
             />
+            {isUploading && (
+              <ActivityIndicator
+                size="small"
+                color="black"
+                className="ml-2 mb-2"
+              />
+            )}
           </View>
 
           <TouchableOpacity
             onPress={handleSend}
-            disabled={!message.trim()}
+            disabled={
+              (!message.trim() && selectedImages.length === 0) || isUploading
+            }
             className={`ml-3 w-12 h-12 rounded-full items-center justify-center ${
-              !message.trim() ? "bg-gray-100" : "bg-black"
+              (!message.trim() && selectedImages.length === 0) || isUploading
+                ? "bg-gray-100"
+                : "bg-black"
             }`}
           >
             <Ionicons
               name="send"
               size={20}
-              color={message.trim() ? "white" : "#9CA3AF"}
+              color={
+                (!message.trim() && selectedImages.length === 0) || isUploading
+                  ? "#9CA3AF"
+                  : "white"
+              }
             />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <ImageViewer
+        visible={viewerVisible}
+        images={viewerImages.map((img) => img.uri)}
+        initialIndex={viewerIndex}
+        onClose={() => setViewerVisible(false)}
+      />
     </View>
   );
 }

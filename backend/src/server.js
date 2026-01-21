@@ -109,7 +109,7 @@ if (ENV.NODE_ENV === "production") {
 
 // ============ Start Server ============
 
-app.listen(ENV.PORT, () => {
-  console.log(`Server running at http://localhost:${ENV.PORT}`);
+app.listen(ENV.PORT, "0.0.0.0", () => {
+  console.log(`Server running at http://0.0.0.0:${ENV.PORT}`);
   console.log(`Environment: ${ENV.NODE_ENV || "development"}`);
 });

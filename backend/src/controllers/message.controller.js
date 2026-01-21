@@ -33,7 +33,8 @@ export const getConversations = async (req, res) => {
         last_message:messages(
           content,
           created_at,
-          sender_id
+          sender_id,
+          image_urls
         )
       `,
       )
@@ -189,6 +190,7 @@ export const sendMessage = async (req, res) => {
         conversation_id: actualConversationId,
         sender_id: senderId,
         content,
+        image_urls: req.body.images || [], // Use existing image_urls column
       })
       .select()
       .single();
