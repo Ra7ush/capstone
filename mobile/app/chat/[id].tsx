@@ -36,6 +36,7 @@ export default function ChatDetail() {
     otherUser,
     loadingMessages,
     sendMessage,
+    sendMessageAsync,
     isSending,
     markAsRead,
     isOtherUserTyping,
@@ -120,25 +121,32 @@ export default function ChatDetail() {
         const manipulatedImage = await ImageManipulator.manipulateAsync(
           uri,
           [], // No transformations, just format conversion
-          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
+          {
+            compress: 0.8,
+            format: ImageManipulator.SaveFormat.JPEG,
+            base64: true,
+          },
         );
 
-        const convertedUri = manipulatedImage.uri;
+        // const convertedUri = manipulatedImage.uri;
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
         const path = `chat_attachments/${user?.id}/${fileName}`;
 
-        const formData = new FormData();
-        formData.append("file", {
-          uri: convertedUri,
-          name: fileName,
-          type: "image/jpeg",
-        } as any);
+        // const formData = new FormData();
+        // formData.append("file", {
+        //   uri: convertedUri,
+        //   name: fileName,
+        //   type: "image/jpeg",
+        // } as any);
+
+        const arrayBuffer = decode(manipulatedImage.base64!);
 
         const { data, error } = await supabase.storage
           .from("community")
-          .upload(path, formData, {
+          .upload(path, arrayBuffer, {
             cacheControl: "3600",
             upsert: true,
+            contentType: "image/jpeg",
           });
 
         if (error) throw error;
@@ -161,26 +169,24 @@ export default function ChatDetail() {
   const handleSend = async () => {
     if (!message.trim() && selectedImages.length === 0) return;
 
-    let imageUrls: string[] = [];
+    const currentMsg = message.trim();
     const currentImages = [...selectedImages];
 
-    // Optimistically clear the UI states
-    const currentMsg = message.trim();
-    setMessage("");
-    setSelectedImages([]);
-
-    if (currentImages.length > 0) {
-      try {
+    try {
+      let imageUrls: string[] = [];
+      if (currentImages.length > 0) {
         imageUrls = await uploadImages(currentImages);
-      } catch (error) {
-        // Rollback on upload error?
-        // For now just alert or log
-        console.error("Failed to upload some images");
-        return;
       }
-    }
 
-    sendMessage({ content: currentMsg, images: imageUrls });
+      await sendMessageAsync({ content: currentMsg, images: imageUrls });
+
+      // Only clear on success
+      setMessage("");
+      setSelectedImages([]);
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      // Data is preserved in message and selectedImages state
+    }
   };
 
   const getInitials = (name: string) => {
@@ -518,10 +524,14 @@ export default function ChatDetail() {
           <TouchableOpacity
             onPress={handleSend}
             disabled={
-              (!message.trim() && selectedImages.length === 0) || isUploading
+              (!message.trim() && selectedImages.length === 0) ||
+              isUploading ||
+              isSending
             }
             className={`ml-3 w-12 h-12 rounded-full items-center justify-center ${
-              (!message.trim() && selectedImages.length === 0) || isUploading
+              (!message.trim() && selectedImages.length === 0) ||
+              isUploading ||
+              isSending
                 ? "bg-gray-100"
                 : "bg-black"
             }`}
@@ -530,7 +540,9 @@ export default function ChatDetail() {
               name="send"
               size={20}
               color={
-                (!message.trim() && selectedImages.length === 0) || isUploading
+                (!message.trim() && selectedImages.length === 0) ||
+                isUploading ||
+                isSending
                   ? "#9CA3AF"
                   : "white"
               }

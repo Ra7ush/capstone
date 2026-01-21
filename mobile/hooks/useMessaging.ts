@@ -287,6 +287,7 @@ export function useChat(conversationId: string, userId?: string) {
     otherUser,
     loadingMessages,
     sendMessage: sendMessageMutation.mutate,
+    sendMessageAsync: sendMessageMutation.mutateAsync,
     isSending: sendMessageMutation.isPending,
     markAsRead: markReadMutation.mutate,
     isOtherUserTyping,
