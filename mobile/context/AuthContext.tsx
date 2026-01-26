@@ -7,10 +7,11 @@ import React, {
   useRef,
 } from "react";
 import { supabase } from "@/lib/supabase";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { mmkvStorageAsync } from "@/lib/storage";
 import type { AuthState, VerificationStatus } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { communityApi } from "@/lib/api";
+import { clearAllMessageCaches } from "@/lib/messageCache";
 
 const PENDING_EMAIL_KEY = "@pending_verification_email";
 
@@ -44,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setState((prev) => ({ ...prev, isLoading: true }));
       }
 
-      const pendingEmail = await AsyncStorage.getItem(PENDING_EMAIL_KEY);
+      const pendingEmail = await mmkvStorageAsync.getItem(PENDING_EMAIL_KEY);
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -102,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (isEmailVerified && pendingEmail) {
-        await AsyncStorage.removeItem(PENDING_EMAIL_KEY);
+        await mmkvStorageAsync.removeItem(PENDING_EMAIL_KEY);
       }
 
       setState({
@@ -149,6 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           user: null,
         });
         queryClient.clear();
+        clearAllMessageCaches();
       }
     });
 
@@ -201,12 +203,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state.hasProfile, !!state.user, state.isLoading, queryClient]);
 
   const setPendingEmail = async (email: string) => {
-    await AsyncStorage.setItem(PENDING_EMAIL_KEY, email);
+    await mmkvStorageAsync.setItem(PENDING_EMAIL_KEY, email);
     setState((prev) => ({ ...prev, pendingEmail: email }));
   };
 
   const clearPendingEmail = async () => {
-    await AsyncStorage.removeItem(PENDING_EMAIL_KEY);
+    await mmkvStorageAsync.removeItem(PENDING_EMAIL_KEY);
     setState((prev) => ({ ...prev, pendingEmail: null }));
   };
 

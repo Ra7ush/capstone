@@ -1,6 +1,8 @@
 import supabase from "../config/db.js";
+import { getOrSet, invalidatePattern } from "../config/redis.js";
+import { logger } from "../config/logger.js";
 
-export async function createCommunity(req, res) {
+export async function createCommunity(req, res, next) {
   try {
     const { name, description, banner_url, privacy, category } = req.body;
     const userId = req.user?.id;
@@ -18,9 +20,9 @@ export async function createCommunity(req, res) {
       .single();
 
     if (userError || !userData) {
-      return res
-        .status(500)
-        .json({ success: false, error: "Failed to verify user role" });
+      const err = new Error("Failed to verify user role");
+      err.code = "AUTH_ERROR";
+      throw err;
     }
 
     if (userData.role !== "creator") {
@@ -38,9 +40,7 @@ export async function createCommunity(req, res) {
       .maybeSingle();
 
     if (existingError) {
-      return res
-        .status(500)
-        .json({ success: false, error: existingError.message });
+      throw existingError;
     }
 
     if (existingCommunity) {
@@ -66,9 +66,7 @@ export async function createCommunity(req, res) {
       .single();
 
     if (communityError) {
-      return res
-        .status(500)
-        .json({ success: false, error: communityError.message });
+      throw communityError;
     }
 
     // 4. Automatically join the creator as an admin
@@ -80,29 +78,26 @@ export async function createCommunity(req, res) {
         role: "admin",
       });
     if (memberError) {
-      console.error("Error joining creator to community:", memberError);
+      logger.error("Error joining creator to community:", memberError);
       // Rollback: delete the community
       await supabase.from("communities").delete().eq("id", community.id);
-      return res.status(500).json({
-        success: false,
-        error: "Failed to initialize community membership",
-      });
+      throw new Error("Failed to initialize community membership");
     }
 
     return res.status(201).json({ success: true, data: community });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function getDiscoverCommunities(req, res) {
+export async function getDiscoverCommunities(req, res, next) {
   try {
     const userId = req.user?.id;
     const { category } = req.query;
 
     let query = supabase
       .from("communities")
-      .select("*, creator:users(id, username)")
+      .select("*, creator:users!communities_creator_id_fkey(id, username)")
       .eq("privacy", "public");
 
     const isValidCategory =
@@ -132,16 +127,17 @@ export async function getDiscoverCommunities(req, res) {
       .limit(20);
 
     if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+      logger.error("Discover Communities Error:", error);
+      throw error;
     }
 
     return res.status(200).json({ success: true, data });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function getJoinedCommunities(req, res) {
+export async function getJoinedCommunities(req, res, next) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -151,21 +147,21 @@ export async function getJoinedCommunities(req, res) {
     const { data, error } = await supabase
       .from("community_members")
       .select(
-        "role, joined_at, community:communities(*, creator:users(id, username))",
+        "role, joined_at, community:communities(*, creator:users!communities_creator_id_fkey(id, username))",
       )
       .eq("user_id", userId);
 
     if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+      throw error;
     }
 
     return res.status(200).json({ success: true, data });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function joinCommunity(req, res) {
+export async function joinCommunity(req, res, next) {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -181,7 +177,7 @@ export async function joinCommunity(req, res) {
     });
 
     if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+      throw error;
     }
 
     // Check the result from the atomic function
@@ -194,11 +190,11 @@ export async function joinCommunity(req, res) {
 
     return res.status(200).json({ success: true, message: "Joined community" });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function leaveCommunity(req, res) {
+export async function leaveCommunity(req, res, next) {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -228,7 +224,7 @@ export async function leaveCommunity(req, res) {
     });
 
     if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+      throw error;
     }
 
     // Check the result from the atomic function
@@ -241,32 +237,32 @@ export async function leaveCommunity(req, res) {
 
     return res.status(200).json({ success: true, message: "Left community" });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function getCommunityById(req, res) {
+export async function getCommunityById(req, res, next) {
   try {
     const { id } = req.params;
     const { data, error } = await supabase
       .from("communities")
-      .select("*, creator:users(id, username)")
+      .select("*, creator:users!communities_creator_id_fkey(id, username)")
       .eq("id", id)
       .single();
 
     if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+      throw error;
     }
 
     return res.status(200).json({ success: true, data });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
 // POSTS
 
-export async function createPost(req, res) {
+export async function createPost(req, res, next) {
   try {
     const { content, images, community_id } = req.body;
     const userId = req.user?.id;
@@ -297,18 +293,21 @@ export async function createPost(req, res) {
     }
 
     if (error) {
-      console.error("Supabase error creating post:", error);
-      return res.status(500).json({ success: false, error: error.message });
+      logger.error("Supabase error creating post:", error);
+      throw error;
     }
+
+    // Invalidate feed cache
+    await invalidatePattern("feed:*");
 
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    console.error("Exception creating post:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    logger.error("Exception creating post:", error);
+    next(error);
   }
 }
 
-export async function getFeed(req, res) {
+export async function getFeed(req, res, next) {
   try {
     const userId = req.user?.id;
     const page = parseInt(req.query.page) || 1;
@@ -317,31 +316,40 @@ export async function getFeed(req, res) {
     const to = from + limit - 1;
     const communityId = req.query.community_id;
 
-    let query = supabase
-      .from("posts")
-      .select(
-        "*, user:users(id, username, email, followers_count, following_count, creators(bio, verification_status)), community:communities(*)",
-        { count: "exact" },
-      );
+    const cacheKey = `feed:${communityId || "global"}:page:${page}:limit:${limit}`;
 
-    const isValidCommunityId =
-      communityId && communityId !== "null" && communityId !== "undefined";
-    if (isValidCommunityId) {
-      query = query.eq("community_id", communityId);
-    } else {
-      // If no communityId, maybe show only global posts or posts from joined communities?
-      // For now, let's just show all posts if no filter is applied.
-    }
+    const { posts, count } = await getOrSet(
+      cacheKey,
+      async () => {
+        let query = supabase
+          .from("posts")
+          .select(
+            "*, user:users(id, username, email, followers_count, following_count, creators(bio, verification_status)), community:communities(*)",
+            { count: "exact" },
+          );
 
-    const {
-      data: posts,
-      error,
-      count,
-    } = await query.order("created_at", { ascending: false }).range(from, to);
+        const isValidCommunityId =
+          communityId && communityId !== "null" && communityId !== "undefined";
+        if (isValidCommunityId) {
+          query = query.eq("community_id", communityId);
+        }
 
-    if (error) {
-      return res.status(500).json({ success: false, error: error.message });
-    }
+        const {
+          data: posts,
+          error,
+          count,
+        } = await query
+          .order("created_at", { ascending: false })
+          .range(from, to);
+
+        if (error) {
+          throw error;
+        }
+
+        return { posts, count };
+      },
+      30, // 30 seconds TTL
+    );
 
     if (userId && posts) {
       // 1. Check likes
@@ -390,11 +398,11 @@ export async function getFeed(req, res) {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function getPostById(req, res) {
+export async function getPostById(req, res, next) {
   try {
     const { id } = req.params;
     const { data, error } = await supabase
@@ -408,15 +416,15 @@ export async function getPostById(req, res) {
     }
 
     if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+      throw error;
     }
     return res.status(200).json({ success: true, data });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function updatePost(req, res) {
+export async function updatePost(req, res, next) {
   try {
     const { id } = req.params;
     const { content, images } = req.body;
@@ -443,15 +451,19 @@ export async function updatePost(req, res) {
       .single();
 
     if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+      throw error;
     }
+
+    // Invalidate feed cache
+    await invalidatePattern("feed:*");
+
     return res.status(200).json({ success: true, data });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function deletePost(req, res) {
+export async function deletePost(req, res, next) {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -472,20 +484,24 @@ export async function deletePost(req, res) {
     const { error } = await supabase.from("posts").delete().eq("id", id);
 
     if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+      throw error;
     }
+
+    // Invalidate feed cache
+    await invalidatePattern("feed:*");
+
     return res.status(200).json({ success: true, message: "Post deleted" });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
 // ============ LIKES ============
 
-export async function likePost(req, res) {
+export async function likePost(req, res, next) {
   const { id: post_id } = req.params;
   const user_id = req.user?.id;
-  console.log(`[DEBUG] likePost called - Post: ${post_id}, User: ${user_id}`);
+  logger.debug(`[likePost] Post: ${post_id}, User: ${user_id}`);
 
   try {
     if (!user_id)
@@ -495,14 +511,15 @@ export async function likePost(req, res) {
     const uuidRegex =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(post_id)) {
-      console.error(`[DEBUG] Invalid UUID format for post_id: ${post_id}`);
+      logger.error(`Invalid UUID format for post_id: ${post_id}`);
       return res
         .status(400)
         .json({ success: false, error: "Invalid post ID format" });
     }
 
+    // ... (rest of the logic remains the same, just checking for throws) ...
     // 1. Attempt Atomic RPC
-    console.log("[DEBUG] Attempting handle_post_like RPC...");
+    logger.debug("Attempting handle_post_like RPC...");
     const { data: rpcData, error: rpcError } = await supabase.rpc(
       "handle_post_like",
       {
@@ -513,7 +530,7 @@ export async function likePost(req, res) {
     );
 
     if (!rpcError) {
-      console.log("[DEBUG] RPC Success");
+      logger.debug("RPC Success");
       const result = Array.isArray(rpcData) ? rpcData[0] : rpcData;
       return res.status(200).json({
         success: true,
@@ -523,11 +540,11 @@ export async function likePost(req, res) {
       });
     }
 
-    console.log(`[DEBUG] RPC Failed with code: ${rpcError.code}`);
+    logger.debug(`RPC Failed with code: ${rpcError.code}`);
 
     // 2. Fallback Path
     if (rpcError.code === "PGRST202") {
-      console.log("[DEBUG] RPC not found, running fallback...");
+      logger.debug("RPC not found, running fallback...");
 
       const { data: existingLike, error: checkError } = await supabase
         .from("post_likes")
@@ -539,7 +556,7 @@ export async function likePost(req, res) {
       if (checkError) throw checkError;
 
       if (!existingLike) {
-        console.log("[DEBUG] Inserting new like...");
+        logger.debug("Inserting new like...");
         const { error: insertError } = await supabase
           .from("post_likes")
           .insert({ post_id, user_id });
@@ -561,11 +578,11 @@ export async function likePost(req, res) {
           throw insertError;
         }
 
-        console.log("[DEBUG] Calling increment_likes fallback...");
+        logger.debug("Calling increment_likes fallback...");
         await supabase.rpc("increment_likes", { post_id });
       }
 
-      console.log("[DEBUG] Fetching final count...");
+      logger.debug("Fetching final count...");
       const { count: likesCount, error: countError } = await supabase
         .from("post_likes")
         .select("*", { count: "exact", head: true })
@@ -581,18 +598,18 @@ export async function likePost(req, res) {
       });
     }
 
-    console.error("[DEBUG] Unexpected RPC Error:", rpcError);
-    return res.status(500).json({ success: false, error: rpcError.message });
+    logger.error("Unexpected RPC Error:", rpcError);
+    throw rpcError;
   } catch (error) {
-    console.error("[DEBUG] Catch Block hit in likePost:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    logger.error("Catch Block hit in likePost:", error);
+    next(error);
   }
 }
 
-export async function unlikePost(req, res) {
+export async function unlikePost(req, res, next) {
   const { id: post_id } = req.params;
   const user_id = req.user?.id;
-  console.log(`[DEBUG] unlikePost called - Post: ${post_id}, User: ${user_id}`);
+  logger.debug(`[unlikePost] Post: ${post_id}, User: ${user_id}`);
 
   try {
     if (!user_id)
@@ -606,7 +623,7 @@ export async function unlikePost(req, res) {
         .json({ success: false, error: "Invalid post ID format" });
     }
 
-    console.log("[DEBUG] Attempting handle_post_like RPC for unlike...");
+    logger.debug("Attempting handle_post_like RPC for unlike...");
     const { data: rpcData, error: rpcError } = await supabase.rpc(
       "handle_post_like",
       {
@@ -617,7 +634,7 @@ export async function unlikePost(req, res) {
     );
 
     if (!rpcError) {
-      console.log("[DEBUG] RPC Unlike Success");
+      logger.debug("RPC Unlike Success");
       const result = Array.isArray(rpcData) ? rpcData[0] : rpcData;
       return res.status(200).json({
         success: true,
@@ -627,10 +644,10 @@ export async function unlikePost(req, res) {
       });
     }
 
-    console.log(`[DEBUG] RPC Unlike Failed with code: ${rpcError.code}`);
+    logger.debug(`RPC Unlike Failed with code: ${rpcError.code}`);
 
     if (rpcError.code === "PGRST202") {
-      console.log("[DEBUG] RPC not found, running unlike fallback...");
+      logger.debug("RPC not found, running unlike fallback...");
 
       const { error: deleteError } = await supabase
         .from("post_likes")
@@ -640,7 +657,7 @@ export async function unlikePost(req, res) {
 
       if (deleteError) throw deleteError;
 
-      console.log("[DEBUG] Calling decrement_likes fallback...");
+      logger.debug("Calling decrement_likes fallback...");
       await supabase.rpc("decrement_likes", { post_id });
 
       const { count: likesCount, error: countError } = await supabase
@@ -658,17 +675,17 @@ export async function unlikePost(req, res) {
       });
     }
 
-    console.error("[DEBUG] Unexpected RPC Unlike Error:", rpcError);
-    return res.status(500).json({ success: false, error: rpcError.message });
+    logger.error("Unexpected RPC Unlike Error:", rpcError);
+    throw rpcError;
   } catch (error) {
-    console.error("[DEBUG] Catch Block hit in unlikePost:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    logger.error("Catch Block hit in unlikePost:", error);
+    next(error);
   }
 }
 
 // ============ COMMENTS ============
 
-export async function addComment(req, res) {
+export async function addComment(req, res, next) {
   try {
     const { id } = req.params;
     const { content, parentId } = req.body;
@@ -700,7 +717,7 @@ export async function addComment(req, res) {
     }
 
     if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+      throw error;
     }
 
     // Increment comments_count on post
@@ -715,70 +732,82 @@ export async function addComment(req, res) {
 
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function getComments(req, res) {
+export async function getComments(req, res, next) {
   try {
-    const { id } = req.params;
+    const { id: postId } = req.params;
     const userId = req.user?.id;
+    const cacheKey = `comments:post:${postId}`;
 
-    // 1. Fetch comments
-    const { data: comments, error } = await supabase
-      .from("comments")
-      .select("*, user:users(id, username, email, creators(bio))")
-      .eq("post_id", id)
-      .order("created_at", { ascending: true });
+    // 1. Fetch base comments and like mapping from cache/db
+    const cachedData = await getOrSet(
+      cacheKey,
+      async () => {
+        logger.debug(`[getComments] Cache miss for post: ${postId}`);
 
-    if (comments) {
-      comments.forEach((c) => {
-        if (c.user) {
-          c.user.bio = c.user.creators?.bio;
-        }
-      });
-    }
+        // A. Fetch comments with user details
+        const { data: comments, error } = await supabase
+          .from("comments")
+          .select(
+            "*, user:users(id, username, email, profile_image_url, creators(bio))",
+          )
+          .eq("post_id", postId)
+          .order("created_at", { ascending: true });
 
-    if (error) {
-      return res.status(500).json({ success: false, error: error.message });
-    }
+        if (error) throw error;
 
-    // 2. Fetch all likes for these comments to get accurate counts and user status
-    let commentsWithLikes = comments;
-    if (comments.length > 0) {
-      const commentIds = comments.map((c) => c.id);
+        if (!comments || comments.length === 0)
+          return { comments: [], likesMap: {} };
 
-      const { data: allLikes } = await supabase
-        .from("comment_likes")
-        .select("comment_id, user_id")
-        .in("comment_id", commentIds);
+        // Flatten creator bio
+        comments.forEach((c) => {
+          if (c.user) {
+            c.user.bio = c.user.creators?.bio;
+          }
+        });
 
-      // Create a map of commentId -> Array of likes
-      const likesMap = {};
-      allLikes?.forEach((like) => {
-        if (!likesMap[like.comment_id]) {
-          likesMap[like.comment_id] = [];
-        }
-        likesMap[like.comment_id].push(like.user_id);
-      });
+        // B. Fetch all likes for these comments to build the map
+        const commentIds = comments.map((c) => c.id);
+        const { data: allLikes } = await supabase
+          .from("comment_likes")
+          .select("comment_id, user_id")
+          .in("comment_id", commentIds);
 
-      commentsWithLikes = comments.map((comment) => {
-        const likes = likesMap[comment.id] || [];
-        return {
-          ...comment,
-          likes_count: likes.length, // Use actual count from table
-          has_liked: userId ? likes.includes(userId) : false,
-        };
-      });
-    }
+        const likesMap = {};
+        allLikes?.forEach((like) => {
+          if (!likesMap[like.comment_id]) {
+            likesMap[like.comment_id] = [];
+          }
+          likesMap[like.comment_id].push(like.user_id);
+        });
 
-    return res.status(200).json({ success: true, data: commentsWithLikes });
+        return { comments, likesMap };
+      },
+      300, // 5 minutes TTL
+    );
+
+    // 2. Perform session-specific formatting (dynamic)
+    const { comments, likesMap } = cachedData;
+    const formattedComments = comments.map((comment) => {
+      const userIdsWhoLiked = likesMap[comment.id] || [];
+      return {
+        ...comment,
+        likes_count: userIdsWhoLiked.length,
+        has_liked: userId ? userIdsWhoLiked.includes(userId) : false,
+      };
+    });
+
+    return res.status(200).json({ success: true, data: formattedComments });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    logger.error("Error in getComments:", error);
+    next(error);
   }
 }
 
-export async function deleteComment(req, res) {
+export async function deleteComment(req, res, next) {
   try {
     const { id, commentId } = req.params;
     const userId = req.user?.id;
@@ -803,7 +832,7 @@ export async function deleteComment(req, res) {
       .eq("id", commentId);
 
     if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+      throw error;
     }
 
     // Decrement comments_count
@@ -817,11 +846,11 @@ export async function deleteComment(req, res) {
 
     return res.status(200).json({ success: true, message: "Comment deleted" });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function likeComment(req, res) {
+export async function likeComment(req, res, next) {
   try {
     const { commentId } = req.params;
     const userId = req.user?.id;
@@ -850,7 +879,7 @@ export async function likeComment(req, res) {
     });
 
     if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+      throw error;
     }
 
     // Increment likes_count
@@ -860,11 +889,11 @@ export async function likeComment(req, res) {
 
     return res.status(200).json({ success: true, message: "Comment liked" });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function unlikeComment(req, res) {
+export async function unlikeComment(req, res, next) {
   try {
     const { commentId } = req.params;
     const userId = req.user?.id;
@@ -880,7 +909,7 @@ export async function unlikeComment(req, res) {
       .eq("user_id", userId);
 
     if (error) {
-      return res.status(500).json({ success: false, error: error.message });
+      throw error;
     }
 
     // Decrement likes_count
@@ -890,11 +919,11 @@ export async function unlikeComment(req, res) {
 
     return res.status(200).json({ success: true, message: "Comment unliked" });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function editComment(req, res) {
+export async function editComment(req, res, next) {
   try {
     const { commentId } = req.params;
     const { content } = req.body;
@@ -924,7 +953,7 @@ export async function editComment(req, res) {
           error: "Comment not found or not authorized",
         });
       }
-      return res.status(500).json({ success: false, error: error.message });
+      throw error;
     }
     if (!data) {
       return res.status(404).json({
@@ -934,6 +963,69 @@ export async function editComment(req, res) {
     }
     return res.status(200).json({ success: true, data });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
+
+// export async function deleteComment(req, res) {
+//   try {
+//     const { commentId } = req.params;
+//     const userId = req.user?.id;
+
+//     if (!userId) {
+//       return res.status(401).json({ success: false, error: "Unauthorized" });
+//     }
+
+//     const { error } = await supabase
+//       .from("comments")
+//       .delete()
+//       .eq("id", commentId)
+//       .eq("user_id", userId);
+
+//     if (error) {
+//       return res.status(500).json({ success: false, error: error.message });
+//     }
+
+//     return res.status(200).json({ success: true, message: "Comment deleted" });
+//   } catch (error) {
+//     return res.status(500).json({ success: false, error: error.message });
+//   }
+// }
+
+// export async function updateComment(req, res) {
+//   try {
+//     const { commentId } = req.params;
+//     const { content } = req.body;
+//     const userId = req.user?.id;
+
+//     if (!userId) {
+//       return res.status(401).json({ success: false, error: "Unauthorized" });
+//     }
+
+//     const { data, error } = await supabase
+//       .from("comments")
+//       .update({ content: content.trim(), is_edited: true })
+//       .eq("id", commentId)
+//       .eq("user_id", userId)
+//       .select()
+//       .single();
+//     if (error) {
+//       if (error.code === "PGRST116") {
+//         return res.status(404).json({
+//           success: false,
+//           error: "Comment not found or not authorized",
+//         });
+//       }
+//       return res.status(500).json({ success: false, error: error.message });
+//     }
+//     if (!data) {
+//       return res.status(404).json({
+//         success: false,
+//         error: "Comment not found or not authorized",
+//       });
+//     }
+//     return res.status(200).json({ success: true, data });
+//   } catch (error) {
+//     return res.status(500).json({ success: false, error: error.message });
+//   }
+// }

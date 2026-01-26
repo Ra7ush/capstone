@@ -15,10 +15,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { useAdminPrefetch } from "../hooks/useAdminPrefetch";
 
 function DashBoardLayout() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const { prefetchData, warmUpCache } = useAdminPrefetch();
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -28,6 +30,9 @@ function DashBoardLayout() {
       setUser(session?.user ?? null);
     };
     fetchUser();
+
+    // Warm up the cache for other tabs when the Admin first arrives
+    warmUpCache();
 
     const {
       data: { subscription },
@@ -172,6 +177,7 @@ function DashBoardLayout() {
                     <NavLink
                       key={item.path}
                       to={item.path}
+                      onMouseEnter={() => prefetchData(item.path)}
                       className={({ isActive }) => `
                         flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative
                         ${

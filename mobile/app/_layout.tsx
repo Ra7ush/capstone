@@ -5,7 +5,7 @@ import "../global.css";
 import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { mmkvStorageAsync } from "@/lib/storage";
 import { useAuthState } from "@/hooks/useAuthState";
 import { communityApi, profileApi } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
@@ -31,11 +31,11 @@ const queryClient = new QueryClient({
   },
 });
 
-// Create persister to save cache to AsyncStorage
-const asyncStoragePersister = createAsyncStoragePersister({
-  storage: AsyncStorage,
-  key: "REACT_QUERY_CACHE",
-  throttleTime: 1000, // Only persist every 1 second to avoid performance issues
+// Create persister to save cache to MMKV
+const mmkvPersister = createAsyncStoragePersister({
+  storage: mmkvStorageAsync,
+  key: "REACT_QUERY_CACHE_V3", // Bump version for MMKV migration
+  throttleTime: 1000,
 });
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -224,7 +224,7 @@ function RealtimeSync() {
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
         if (payload.conversationId) {
           queryClient.invalidateQueries({
-            queryKey: ["messages", payload.conversationId],
+            queryKey: ["messages-v3", payload.conversationId],
           });
         }
       })
@@ -233,7 +233,7 @@ function RealtimeSync() {
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
         if (payload.conversationId) {
           queryClient.invalidateQueries({
-            queryKey: ["messages", payload.conversationId],
+            queryKey: ["messages-v3", payload.conversationId],
           });
         }
       })
@@ -256,7 +256,19 @@ export default function RootLayout() {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister: asyncStoragePersister }}
+      persistOptions={{
+        persister: mmkvPersister,
+        dehydrateOptions: {
+          shouldDehydrateQuery: (query) => {
+            // Only dehydrate successful queries to avoid persisting error/pending states
+            if (query.state.status !== "success") return false;
+
+            // Don't persist chat messages in global cache
+            // We handle this manually in Option B to strictly limit to 10 messages
+            return query.queryKey[0] !== "messages-v3";
+          },
+        },
+      }}
     >
       <AuthProvider>
         <AuthGuard>

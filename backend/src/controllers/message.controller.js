@@ -1,6 +1,7 @@
 import supabase from "../config/db.js";
+import { logger } from "../config/logger.js";
 
-export const getConversations = async (req, res) => {
+export const getConversations = async (req, res, next) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -51,7 +52,7 @@ export const getConversations = async (req, res) => {
       .neq("sender_id", userId)
       .eq("is_read", false);
 
-    if (unreadError) console.error("Error counting unread:", unreadError);
+    if (unreadError) logger.error("Error counting unread:", unreadError);
 
     // Create a map of conversation_id -> unread count
     const unreadCountMap = (unreadCounts || []).reduce((acc, msg) => {
@@ -84,12 +85,12 @@ export const getConversations = async (req, res) => {
 
     res.status(200).json({ success: true, data: formattedConversations });
   } catch (error) {
-    console.error("Error fetching conversations:", error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error("Error fetching conversations:", error);
+    next(error);
   }
 };
 
-export const getMessages = async (req, res) => {
+export const getMessages = async (req, res, next) => {
   try {
     const { conversationId } = req.params;
     const userId = req.user?.id;
@@ -130,29 +131,40 @@ export const getMessages = async (req, res) => {
       (p) => p.user.id !== userId,
     );
 
-    // 2. Get messages
+    // 2. Get messages with pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
     const { data: messages, error } = await supabase
       .from("messages")
       .select("*")
       .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: false }) // Newest first for easier pagination
+      .range(from, to);
 
     if (error) throw error;
 
     res.status(200).json({
       success: true,
       data: {
-        messages,
+        messages: messages || [],
         other_user: otherParticipant?.user || null,
+        pagination: {
+          page,
+          limit,
+          hasMore: messages.length === limit,
+        },
       },
     });
   } catch (error) {
-    console.error("Error fetching messages:", error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error("Error fetching messages:", error);
+    next(error);
   }
 };
 
-export const sendMessage = async (req, res) => {
+export const sendMessage = async (req, res, next) => {
   try {
     const { conversationId, receiverId, content } = req.body;
     const senderId = req.user?.id;
@@ -206,7 +218,7 @@ export const sendMessage = async (req, res) => {
         payload: message,
       });
     } catch (broadcastError) {
-      console.error("Broadcast to chat room failed:", broadcastError);
+      logger.error("Broadcast to chat room failed:", broadcastError);
       // Non-fatal: message is saved, CDC will eventually deliver
     }
 
@@ -232,12 +244,12 @@ export const sendMessage = async (req, res) => {
 
     res.status(201).json({ success: true, data: message });
   } catch (error) {
-    console.error("Error sending message:", error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error("Error sending message:", error);
+    next(error);
   }
 };
 
-export const getOrCreateConversation = async (req, res) => {
+export const getOrCreateConversation = async (req, res, next) => {
   try {
     const { receiverId } = req.body;
     const senderId = req.user?.id;
@@ -259,7 +271,7 @@ export const getOrCreateConversation = async (req, res) => {
     );
 
     if (error) {
-      console.error("RPC Error in getOrCreateConversation:", error);
+      logger.error("RPC Error in getOrCreateConversation:", error);
       throw error;
     }
 
@@ -268,11 +280,11 @@ export const getOrCreateConversation = async (req, res) => {
       data: { conversationId },
     });
   } catch (error) {
-    console.error("Error in getOrCreateConversation:", error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error("Error in getOrCreateConversation:", error);
+    next(error);
   }
 };
-export const markAsRead = async (req, res) => {
+export const markAsRead = async (req, res, next) => {
   try {
     const { conversationId } = req.params;
     const userId = req.user?.id;
@@ -328,7 +340,98 @@ export const markAsRead = async (req, res) => {
 
     res.status(200).json({ success: true, message: "Messages marked as read" });
   } catch (error) {
-    console.error("Error marking messages as read:", error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error("Error marking messages as read:", error);
+    next(error);
+  }
+};
+
+export const updateMessage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { data, error } = await supabase
+      .from("messages")
+      .update({ content: content.trim(), is_edited: true })
+      .eq("id", id)
+      .eq("sender_id", userId)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") {
+        return res.status(404).json({
+          success: false,
+          error: "Message not found or not authorized",
+        });
+      }
+      throw error;
+    }
+
+    // Broadcast the update so other users see it immediately
+    try {
+      await supabase.channel(`chat_room_${data.conversation_id}`).send({
+        type: "broadcast",
+        event: "message_update",
+        payload: data,
+      });
+    } catch (e) {
+      logger.error("Broadcast update failed:", e);
+    }
+
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteMessage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    // 1. Get message info FIRST so we know which conversation to broadcast to
+    const { data: msgInfo } = await supabase
+      .from("messages")
+      .select("conversation_id")
+      .eq("id", id)
+      .single();
+
+    // 2. Perform the deletion
+    const { error } = await supabase
+      .from("messages")
+      .delete()
+      .eq("id", id)
+      .eq("sender_id", userId);
+
+    if (error) {
+      throw error;
+    }
+
+    // 3. Broadcast the deletion
+    if (msgInfo?.conversation_id) {
+      try {
+        await supabase.channel(`chat_room_${msgInfo.conversation_id}`).send({
+          type: "broadcast",
+          event: "message_delete",
+          payload: { id },
+        });
+      } catch (e) {
+        logger.error("Broadcast delete failed:", e);
+      }
+    }
+
+    return res.status(200).json({ success: true, message: "Deleted" });
+  } catch (error) {
+    next(error);
   }
 };

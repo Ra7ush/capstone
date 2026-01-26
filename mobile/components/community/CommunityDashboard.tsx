@@ -94,7 +94,7 @@ export const CommunityDashboard = ({
     useCallback(() => {
       // Soft refresh only on focus gain, without triggering a loop on state changes
       refetchFeed();
-    }, [refetchFeed])
+    }, [refetchFeed]),
   );
 
   // Fallback using Document Picker when Image Picker fails
@@ -140,7 +140,7 @@ export const CommunityDashboard = ({
           } else if (buttonIndex === 3) {
             await pickImageWithDocumentPicker();
           }
-        }
+        },
       );
     } else {
       // Android - directly try image picker
@@ -164,7 +164,7 @@ export const CommunityDashboard = ({
 
       if (!result.canceled && result.assets?.[0]?.uri) {
         setSelectedImages((prev) =>
-          [...prev, result.assets[0].uri].slice(0, 5)
+          [...prev, result.assets[0].uri].slice(0, 5),
         );
       }
     } catch (error) {
@@ -180,7 +180,7 @@ export const CommunityDashboard = ({
       if (status !== "granted") {
         Alert.alert(
           "Permission Required",
-          "Please allow access to your photo library."
+          "Please allow access to your photo library.",
         );
         return;
       }
@@ -225,7 +225,7 @@ export const CommunityDashboard = ({
                 }
               },
             },
-          ]
+          ],
         );
       } else {
         Alert.alert("Error", "Could not pick images. Please try again.");
@@ -241,7 +241,7 @@ export const CommunityDashboard = ({
 
     try {
       const imageUrls = await Promise.all(
-        selectedImages.map((uri) => uploadImage(uri))
+        selectedImages.map((uri) => uploadImage(uri)),
       );
 
       await createPost({
@@ -287,7 +287,7 @@ export const CommunityDashboard = ({
         console.error("Like error:", error);
       }
     },
-    [isPostLikePending, likePost, unlikePost]
+    [isPostLikePending, likePost, unlikePost],
   );
 
   const handleDeletePost = (postId: string) => {
@@ -568,7 +568,7 @@ const DashboardHeader = React.memo(
         ))}
       </View>
     </>
-  )
+  ),
 );
 
 const ProfileTab = ({ user, onEdit }: any) => {

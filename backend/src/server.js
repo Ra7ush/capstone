@@ -10,14 +10,25 @@ import communityRouter from "./routes/community.route.js";
 import followRouter from "./routes/follow.route.js";
 import profileRouter from "./routes/profile.route.js";
 import messageRouter from "./routes/message.route.js";
+import { redisClient } from "./config/redis.js";
+import serviceRouter from "./routes/service.route.js";
+import { errorHandler } from "./middlewares/error.middleware.js";
+import { setupRealtimeSync } from "./config/realtimeSync.js";
 
 const __dirname = path.resolve();
 
 const app = express();
+await redisClient.connect();
+
+// Start real-time cache invalidation listener
+setupRealtimeSync();
+
+// ============ Request Logger ============
+import { logger } from "./config/logger.js";
 
 // ============ Request Logger ============
 app.use((req, res, next) => {
-  console.log(`[REQUEST] ${req.method} ${req.path}`);
+  logger.info(`${req.method} ${req.path}`);
   next();
 });
 
@@ -88,6 +99,9 @@ app.use("/api/message", messageRouter);
 // Creator routes
 app.use("/api/creator", creatorRouter);
 
+//Service routes
+app.use("/api/service", serviceRouter);
+
 // Health check endpoint
 app.get("/api/health", (req, res) => {
   res.status(200).json({
@@ -107,9 +121,34 @@ if (ENV.NODE_ENV === "production") {
   });
 }
 
+// ============ Error Handling ============
+app.use(errorHandler);
+
 // ============ Start Server ============
 
-app.listen(ENV.PORT, "0.0.0.0", () => {
-  console.log(`Server running at http://0.0.0.0:${ENV.PORT}`);
-  console.log(`Environment: ${ENV.NODE_ENV || "development"}`);
+const server = app.listen(ENV.PORT, "0.0.0.0", () => {
+  logger.info(`Server running at http://0.0.0.0:${ENV.PORT}`);
+  logger.info(`Environment: ${ENV.NODE_ENV || "development"}`);
+  logger.info(
+    `Redis connected: ${redisClient.status === "ready" ? "true" : "false"}`,
+  );
 });
+
+async function gracefulShutdown(signal) {
+  try {
+    logger.info(`${signal} received. Shutting down gracefully...`);
+    await redisClient.quit().catch((e) => {
+      logger.error("Error quitting Redis:", e);
+    });
+    server.close(() => {
+      logger.info("HTTP server closed.");
+      process.exit(0);
+    });
+  } catch (err) {
+    logger.error("Error during shutdown:", err);
+    process.exit(1);
+  }
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));

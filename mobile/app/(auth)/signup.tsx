@@ -14,7 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { makeRedirectUri } from "expo-auth-session";
 import { openAuthSessionAsync } from "expo-web-browser";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { mmkvStorage } from "@/lib/storage";
 import { STORAGE_KEYS } from "@/constants";
 
 export default function Signup() {
@@ -52,7 +52,7 @@ export default function Signup() {
         ]);
       } else if (data.user) {
         // Save pending email for app restart recovery
-        await AsyncStorage.setItem(STORAGE_KEYS.PENDING_EMAIL, formData.email);
+        mmkvStorage.setItem(STORAGE_KEYS.PENDING_EMAIL, formData.email);
 
         // Navigate to OTP verification
         router.push({

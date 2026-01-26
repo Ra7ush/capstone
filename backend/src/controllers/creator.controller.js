@@ -1,9 +1,11 @@
 import supabase from "../config/db.js";
+import { getOrSet, invalidatePattern } from "../config/redis.js";
+import { logger } from "../config/logger.js";
 
 /**
  * Handle creator verification submission
  */
-export async function submitVerification(req, res) {
+export async function submitVerification(req, res, next) {
   try {
     const userId = req.user.id;
     const {
@@ -62,11 +64,7 @@ export async function submitVerification(req, res) {
       data,
     });
   } catch (error) {
-    console.error("Submit verification error:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message || "An internal error occurred",
-    });
+    next(error);
   }
 }
 
@@ -74,7 +72,7 @@ export async function submitVerification(req, res) {
  * Get all pending verification requests (Admin only)
  * Now generates signed URLs for private storage access
  */
-export async function getPendingRequests(req, res) {
+export async function getPendingRequests(req, res, next) {
   try {
     const { data: requests, error } = await supabase
       .from("creator_verification_requests")
@@ -140,18 +138,14 @@ export async function getPendingRequests(req, res) {
       data: verificationsWithSignedUrls,
     });
   } catch (error) {
-    console.error("Get pending verifications error:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message || "An internal error occurred",
-    });
+    next(error);
   }
 }
 
 /**
  * Update verification request status (Admin only)
  */
-export async function updateRequestStatus(req, res) {
+export async function updateRequestStatus(req, res, next) {
   try {
     const params = req.validatedParams || req.params;
     const { id } = params;
@@ -193,18 +187,14 @@ export async function updateRequestStatus(req, res) {
       data: request,
     });
   } catch (error) {
-    console.error("Update verification status error:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message || "An internal error occurred",
-    });
+    next(error);
   }
 }
 
 /**
  * Get current user's verification status
  */
-export async function getVerificationStatus(req, res) {
+export async function getVerificationStatus(req, res, next) {
   try {
     const userId = req.user.id;
 
@@ -223,75 +213,89 @@ export async function getVerificationStatus(req, res) {
       data: data || null,
     });
   } catch (error) {
-    console.error("Get verification status error:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message || "An internal error occurred",
-    });
+    next(error);
   }
 }
 
 /**
  *  Get creator stats
  */
-export async function getCreatorStats(req, res) {
+export async function getCreatorStats(req, res, next) {
   try {
     const userId = req.user.id;
+    // ... logic ...
+    const cacheKey = `creator_stats:${userId}`;
+    logger.debug(`[getCreatorStats] userId=${userId} cacheKey=${cacheKey}`);
 
-    // 1. Get creator basic details and wallet balance
-    const { data: creator, error: creatorError } = await supabase
-      .from("creators")
-      .select("user_id, wallet_balance")
-      .eq("user_id", userId)
-      .single();
+    const stats = await getOrSet(
+      cacheKey,
+      async () => {
+        logger.debug(
+          `[getCreatorStats] Cache miss -> fetching from Supabase for ${userId}`,
+        );
 
-    if (creatorError) {
-      if (creatorError.code === "PGRST116") {
-        return res
-          .status(404)
-          .json({ success: false, error: "Creator not found" });
-      }
+        // 1. Get creator basic details and wallet balance
+        const { data: creator, error: creatorError } = await supabase
+          .from("creators")
+          .select("user_id, wallet_balance")
+          .eq("user_id", userId)
+          .single();
 
-      console.error("Error fetching creator for stats:", creatorError);
-      return res
-        .status(500)
-        .json({ success: false, error: creatorError.message });
-    }
+        if (creatorError) {
+          if (creatorError.code === "PGRST116") {
+            const err = new Error("Creator not found");
+            err.code = "CREATOR_NOT_FOUND";
+            throw err;
+          }
 
-    if (!creator) {
-      return res
-        .status(404)
-        .json({ success: false, error: "Creator not found" });
-    }
+          logger.error("Error fetching creator for stats:", creatorError);
+          throw creatorError;
+        }
 
-    // 2. Calculate pending payouts (pending + processing status)
-    const { data: payouts, error: payoutsError } = await supabase
-      .from("payouts")
-      .select("amount")
-      .eq("creator_id", creator.user_id)
-      .in("status", ["pending", "processing"]);
+        if (!creator) {
+          const err = new Error("Creator not found");
+          err.code = "CREATOR_NOT_FOUND";
+          throw err;
+        }
 
-    if (payoutsError) {
-      console.error("Error fetching payouts:", payoutsError);
-      throw payoutsError;
-    }
+        // 2. Calculate pending payouts (pending + processing status)
+        const { data: payouts, error: payoutsError } = await supabase
+          .from("payouts")
+          .select("amount")
+          .eq("creator_id", creator.user_id)
+          .in("status", ["pending", "processing"]);
 
-    const pendingPayoutTotal = payouts.reduce(
-      (sum, p) => sum + parseFloat(p.amount),
-      0,
+        if (payoutsError) {
+          logger.error("Error fetching payouts:", payoutsError);
+          throw payoutsError;
+        }
+
+        const pendingPayoutTotal = payouts.reduce(
+          (sum, p) => sum + parseFloat(p.amount),
+          0,
+        );
+
+        const result = {
+          wallet_balance: parseFloat(creator.wallet_balance || 0),
+          pending_payout: pendingPayoutTotal,
+          currency: "USD",
+        };
+
+        logger.debug(
+          `[getCreatorStats] Supabase fetch success, will cache key: ${cacheKey}`,
+        );
+        return result;
+      },
+      60, // 1 minute TTL for financial data (shorter than profile)
     );
 
+    logger.debug(`[getCreatorStats] Returning stats for userId=${userId}`);
     res.status(200).json({
       success: true,
-      data: {
-        wallet_balance: parseFloat(creator.wallet_balance || 0),
-        pending_payout: pendingPayoutTotal,
-        currency: "USD",
-      },
+      data: stats,
     });
   } catch (error) {
-    console.error("Exception in getCreatorStats:", error);
-    res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 

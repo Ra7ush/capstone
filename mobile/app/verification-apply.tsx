@@ -17,7 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useVerification } from "@/hooks";
 import { Input, Button } from "@/components/ui";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { mmkvStorage } from "@/lib/storage";
 
 const VERIFICATION_DRAFT_KEY = "@verification_apply_draft";
 
@@ -51,14 +51,14 @@ export default function VerificationApply() {
   useEffect(() => {
     const loadDraft = async () => {
       try {
-        const draftJson = await AsyncStorage.getItem(VERIFICATION_DRAFT_KEY);
+        const draftJson = mmkvStorage.getItem(VERIFICATION_DRAFT_KEY);
         if (draftJson) {
           const draft = JSON.parse(draftJson);
           setStep(draft.step || 1);
           setFullLegalName(draft.fullLegalName || "");
           setIdType(draft.idType || "national_id");
           setSocialLinks(
-            draft.socialLinks || { github: "", linkedin: "", instagram: "" }
+            draft.socialLinks || { github: "", linkedin: "", instagram: "" },
           );
           setPortfolioUrl(draft.portfolioUrl || "");
           // We don't restore images for now as temporary URIs might be expired
@@ -86,10 +86,7 @@ export default function VerificationApply() {
           socialLinks,
           portfolioUrl,
         };
-        await AsyncStorage.setItem(
-          VERIFICATION_DRAFT_KEY,
-          JSON.stringify(draft)
-        );
+        mmkvStorage.setItem(VERIFICATION_DRAFT_KEY, JSON.stringify(draft));
       } catch (e) {
         console.error("Failed to save verification draft", e);
       }
@@ -130,7 +127,7 @@ export default function VerificationApply() {
           } else if (buttonIndex === 3) {
             await pickFromFiles(type);
           }
-        }
+        },
       );
     } else {
       // Android - prefer camera for verification
@@ -144,7 +141,7 @@ export default function VerificationApply() {
       if (status !== "granted") {
         Alert.alert(
           "Permission Required",
-          "Camera access is needed for verification."
+          "Camera access is needed for verification.",
         );
         return;
       }
@@ -172,7 +169,7 @@ export default function VerificationApply() {
       if (status !== "granted") {
         Alert.alert(
           "Permission Required",
-          "Photo library access is needed for verification."
+          "Photo library access is needed for verification.",
         );
         return;
       }
@@ -205,7 +202,7 @@ export default function VerificationApply() {
               text: "Browse Files",
               onPress: () => pickFromFiles(type),
             },
-          ]
+          ],
         );
       } else {
         Alert.alert("Error", "Could not load the image. Please try again.");
@@ -227,20 +224,20 @@ export default function VerificationApply() {
       // 1. Upload images to Supabase Storage
       const frontUrl = await uploadImage(
         images.front,
-        `${userId}/id_front_${Date.now()}.jpg`
+        `${userId}/id_front_${Date.now()}.jpg`,
       );
 
       let backUrl = null;
       if (images.back) {
         backUrl = await uploadImage(
           images.back,
-          `${userId}/id_back_${Date.now()}.jpg`
+          `${userId}/id_back_${Date.now()}.jpg`,
         );
       }
 
       const selfieUrl = await uploadImage(
         images.selfie,
-        `${userId}/selfie_${Date.now()}.jpg`
+        `${userId}/selfie_${Date.now()}.jpg`,
       );
 
       // 2. Submit verification via hook
@@ -255,13 +252,13 @@ export default function VerificationApply() {
       });
 
       // Clear draft on success
-      await AsyncStorage.removeItem(VERIFICATION_DRAFT_KEY);
+      mmkvStorage.removeItem(VERIFICATION_DRAFT_KEY);
 
       // 3. Success - navigate to tabs
       Alert.alert(
         "Success",
         "Verification submitted! Admins will review it soon.",
-        [{ text: "OK", onPress: () => router.replace("/(tabs)") }]
+        [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
       );
     } catch (error: any) {
       Alert.alert("Error", error.response?.data?.error || error.message);
@@ -435,7 +432,7 @@ export default function VerificationApply() {
                     if (!images.front) {
                       Alert.alert(
                         "Error",
-                        "Please upload the front of your ID."
+                        "Please upload the front of your ID.",
                       );
                       return;
                     }

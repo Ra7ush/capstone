@@ -1,6 +1,8 @@
 import supabase from "../config/db.js";
+import { logger } from "../config/logger.js";
+import { getOrSet } from "../config/redis.js";
 
-export async function followUser(req, res) {
+export async function followUser(req, res, next) {
   const { id: followingId } = req.params;
   const followerId = req.user.id;
 
@@ -24,15 +26,12 @@ export async function followUser(req, res) {
       message: "Followed successfully",
     });
   } catch (error) {
-    console.error("Follow error:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message || "Failed to follow user",
-    });
+    logger.error("Follow error:", error);
+    next(error);
   }
 }
 
-export async function unfollowUser(req, res) {
+export async function unfollowUser(req, res, next) {
   const { id: followingId } = req.params;
   const followerId = req.user.id;
 
@@ -49,68 +48,71 @@ export async function unfollowUser(req, res) {
       message: "Unfollowed successfully",
     });
   } catch (error) {
-    console.error("Unfollow error:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message || "Failed to unfollow user",
-    });
+    logger.error("Unfollow error:", error);
+    next(error);
   }
 }
 
-export async function getFollowers(req, res) {
+export async function getFollowers(req, res, next) {
   const { id: userId } = req.params;
 
   try {
-    const { data, error } = await supabase
-      .from("follows")
-      .select(
-        "follower_id, users!follows_follower_id_fkey(id, username, followers_count, following_count, creators(bio))"
-      )
-      .eq("following_id", userId);
+    const followers = await getOrSet(
+      `social:followers:${userId}`,
+      async () => {
+        const { data, error } = await supabase
+          .from("follows")
+          .select(
+            "follower_id, users!follows_follower_id_fkey(id, username, profile_image_url, followers_count, following_count, creators(bio))",
+          )
+          .eq("following_id", userId);
 
-    if (error) throw error;
+        if (error) throw error;
 
-    const followers = data.map((f) => ({
-      ...f.users,
-      bio: f.users.creators?.bio,
-    }));
+        return data.map((f) => ({
+          ...f.users,
+          bio: f.users.creators?.bio,
+        }));
+      },
+      600, // 10 minutes TTL
+    );
 
     res.status(200).json({
       success: true,
       data: followers,
     });
   } catch (error) {
-    console.error("Get followers error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to get followers",
-    });
+    logger.error("Get followers error:", error);
+    next(error);
   }
 }
 
-export async function getFollowing(req, res) {
+export async function getFollowing(req, res, next) {
   const { id: userId } = req.params;
   try {
-    const { data, error } = await supabase
-      .from("follows")
-      .select(
-        "following_id, users!follows_following_id_fkey(id, username, followers_count, following_count, creators(bio))"
-      )
-      .eq("follower_id", userId);
-    if (error) throw error;
-    const following = data.map((f) => ({
-      ...f.users,
-      bio: f.users.creators?.bio,
-    }));
+    const following = await getOrSet(
+      `social:following:${userId}`,
+      async () => {
+        const { data, error } = await supabase
+          .from("follows")
+          .select(
+            "following_id, users!follows_following_id_fkey(id, username, profile_image_url, followers_count, following_count, creators(bio))",
+          )
+          .eq("follower_id", userId);
+        if (error) throw error;
+        return data.map((f) => ({
+          ...f.users,
+          bio: f.users.creators?.bio,
+        }));
+      },
+      600, // 10 minutes TTL
+    );
     res.status(200).json({
       success: true,
       data: following,
     });
   } catch (error) {
-    console.error("Get following error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to get following",
-    });
+    logger.error("Get following error:", error);
+    next(error);
   }
 }
