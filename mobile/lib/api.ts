@@ -263,8 +263,13 @@ export const messageApi = {
     const response = await api.get("/api/message");
     return response.data;
   },
-  getMessages: async (conversationId: string) => {
-    const response = await api.get(`/api/message/${conversationId}`);
+  getMessages: async (
+    conversationId: string,
+    { page = 1, limit = 20 }: { page?: number; limit?: number } = {},
+  ) => {
+    const response = await api.get(`/api/message/${conversationId}`, {
+      params: { page, limit },
+    });
     return response.data;
   },
   sendMessage: async (data: {
@@ -284,6 +289,16 @@ export const messageApi = {
   },
   markAsRead: async (conversationId: string) => {
     const response = await api.put(`/api/message/${conversationId}/read`);
+    return response.data;
+  },
+
+  updateMessage: async (messageId: string, content: string) => {
+    const response = await api.put(`/api/message/${messageId}`, { content });
+    return response.data;
+  },
+
+  deleteMessage: async (messageId: string) => {
+    const response = await api.delete(`/api/message/${messageId}`);
     return response.data;
   },
 };

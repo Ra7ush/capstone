@@ -1,8 +1,10 @@
 import supabase from "../config/db.js";
 import { ENV } from "../config/env.js";
+import { logger } from "../config/logger.js";
 import os from "os";
+import { getOrSet, invalidatePattern } from "../config/redis.js";
 
-export async function verifyAdmin(req, res) {
+export async function verifyAdmin(req, res, next) {
   try {
     // If the request reaches here, it has passed through adminAuth middleware
     res.status(200).json({
@@ -15,14 +17,11 @@ export async function verifyAdmin(req, res) {
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message || "An internal error occurred",
-    });
+    next(error);
   }
 }
 
-export async function getSystemHealth(req, res) {
+export async function getSystemHealth(req, res, next) {
   try {
     const cpus = os.cpus();
     const totalMem = os.totalmem();
@@ -67,31 +66,28 @@ export async function getSystemHealth(req, res) {
       },
     });
   } catch (error) {
-    console.error("Error fetching system health:", error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error("Error fetching system health:", error);
+    next(error);
   }
 }
 
-export async function getDashboardStats(req, res) {
+export async function getDashboardStats(req, res, next) {
   try {
-    // Use validatedQuery if available (from validation middleware), fallback to query
     const query = req.validatedQuery || req.query;
-    const { range } = query;
-    console.log("getDashboardStats called with range:", range || "1Y");
+    const { range = "1Y" } = query;
+    logger.info("getDashboardStats called with range:", range);
 
-    const { data, error } = await supabase.rpc("get_dashboard_stats", {
-      time_range: range || "1Y",
-    });
-
-    console.log("Supabase RPC response - data:", data, "error:", error);
-
-    if (error) {
-      console.error(
-        "Supabase RPC error details:",
-        JSON.stringify(error, null, 2)
-      );
-      throw error;
-    }
+    const data = await getOrSet(
+      `admin:dashboard:stats:${range}`,
+      async () => {
+        const { data, error } = await supabase.rpc("get_dashboard_stats", {
+          time_range: range,
+        });
+        if (error) throw error;
+        return data;
+      },
+      60,
+    );
 
     res.status(200).json({
       success: true,
@@ -99,12 +95,11 @@ export async function getDashboardStats(req, res) {
     });
   } catch (error) {
     console.error("Error fetching dashboard stats:", error);
-    console.error("Error stack:", error.stack);
-    res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function getAllUsers(req, res) {
+export async function getAllUsers(req, res, next) {
   try {
     const { data, error } = await supabase
       .from("users")
@@ -119,24 +114,24 @@ export async function getAllUsers(req, res) {
           verification_status,
           total_earnings
         )
-      `
+      `,
       )
       .order("updated_at", { ascending: false });
 
-    console.log(data);
+    logger.debug("getAllUsers count:", data?.length ?? 0);
 
     if (error) {
       throw error;
     }
     res.status(200).json({ success: true, data });
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error("Error fetching all users:", error);
+    next(error);
   }
 }
 
 // TODO: we need implement the logig for the suspended users
-export async function updateUser(req, res) {
+export async function updateUser(req, res, next) {
   try {
     const params = req.validatedParams || req.params;
     const { id } = params;
@@ -148,7 +143,7 @@ export async function updateUser(req, res) {
         p_user_id: id,
         p_status: status,
         p_verification_status: verification_status,
-      }
+      },
     );
 
     if (error) throw error;
@@ -177,13 +172,24 @@ export async function updateUser(req, res) {
     }
 
     res.status(200).json({ message: "User updated successfully", data });
+
+    // Invalidate dashboard stats since user counts/statuses might have changed
+    // await invalidatePattern("admin:dashboard:*");
+    try {
+      await invalidatePattern("admin:dashboard:*");
+    } catch (cacheError) {
+      logger.warn(
+        "Cache invalidation failed for admin:dashboard:*",
+        cacheError,
+      );
+    }
   } catch (error) {
     console.log(error);
-    res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function deleteUser(req, res) {
+export async function deleteUser(req, res, next) {
   try {
     const params = req.validatedParams || req.params;
     const { id } = params;
@@ -192,25 +198,43 @@ export async function deleteUser(req, res) {
     if (error) throw error;
 
     res.status(200).json({ message: "User deleted successfully" });
+
+    // Invalidate dashboard stats
+    // await invalidatePattern("admin:dashboard:*");
+    try {
+      await invalidatePattern("admin:dashboard:*");
+    } catch (cacheError) {
+      logger.warn(
+        "Cache invalidation failed for admin:dashboard:*",
+        cacheError,
+      );
+    }
   } catch (error) {
     console.log(error);
-    res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function getFinancesStatus(req, res) {
+export async function getFinancesStatus(req, res, next) {
   try {
-    const { data, error } = await supabase.rpc("get_financial_stats");
-    if (error) throw error;
+    const data = await getOrSet(
+      "admin:finance:status",
+      async () => {
+        const { data, error } = await supabase.rpc("get_financial_stats");
+        if (error) throw error;
+        return data;
+      },
+      300, // 5 minutes TTL
+    );
 
     res.status(200).json({ success: true, data });
   } catch (error) {
     console.log(error);
-    res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function getTransactionsHistory(req, res) {
+export async function getTransactionsHistory(req, res, next) {
   try {
     const { data, error } = await supabase
       .from("payouts")
@@ -228,7 +252,7 @@ export async function getTransactionsHistory(req, res) {
             email
           )
         )
-      `
+      `,
       )
       .order("created_at", { ascending: false })
       .limit(50);
@@ -249,15 +273,15 @@ export async function getTransactionsHistory(req, res) {
       }),
     }));
 
-    console.log(formattedData);
+    logger.debug("Formatted transaction count:", formattedData?.length ?? 0);
     return res.status(200).json({ success: true, data: formattedData });
   } catch (error) {
-    console.error("Error fetching history:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    logger.error("Error fetching history:", error);
+    next(error);
   }
 }
 
-export async function processAllPayouts(req, res) {
+export async function processAllPayouts(req, res, next) {
   try {
     const { data, error } = await supabase.rpc("process_all_pending_payouts");
 
@@ -268,13 +292,30 @@ export async function processAllPayouts(req, res) {
       message: "All payouts processed successfully",
       result: data,
     });
+
+    // Invalidate finance status and dashboard stats
+    // await Promise.all([
+    //   invalidatePattern("admin:finance:*"),
+    //   invalidatePattern("admin:dashboard:*"),
+    // ]);
+    try {
+      await Promise.all([
+        invalidatePattern("admin:finance:*"),
+        invalidatePattern("admin:dashboard:*"),
+      ]);
+    } catch (cacheError) {
+      logger.warn(
+        "Cache invalidation failed for admin:finance:* or admin:dashboard:*",
+        cacheError,
+      );
+    }
   } catch (error) {
-    console.error("Error processing payouts:", error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error("Error processing payouts:", error);
+    next(error);
   }
 }
 
-export async function processSinglePayout(req, res) {
+export async function processSinglePayout(req, res, next) {
   try {
     const params = req.validatedParams || req.params;
     const { id } = params;
@@ -288,13 +329,30 @@ export async function processSinglePayout(req, res) {
       message: "Payout processed successfully",
       result: data,
     });
+
+    // Invalidate finance status and dashboard stats
+    // await Promise.all([
+    //   invalidatePattern("admin:finance:*"),
+    //   invalidatePattern("admin:dashboard:*"),
+    // ]);
+    try {
+      await Promise.all([
+        invalidatePattern("admin:finance:*"),
+        invalidatePattern("admin:dashboard:*"),
+      ]);
+    } catch (cacheError) {
+      logger.warn(
+        "Cache invalidation failed for admin:finance:* or admin:dashboard:*",
+        cacheError,
+      );
+    }
   } catch (error) {
-    console.error("Error processing payout:", error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error("Error processing payout:", error);
+    next(error);
   }
 }
 
-export async function getModerations(req, res) {
+export async function getModerations(req, res, next) {
   try {
     const { data, error } = await supabase
       .from("moderation_reports")
@@ -306,7 +364,7 @@ export async function getModerations(req, res) {
           email,
           status
         )
-      `
+      `,
       )
       .order("created_at", { ascending: false });
 
@@ -348,12 +406,12 @@ export async function getModerations(req, res) {
 
     res.status(200).json({ success: true, data: formattedData });
   } catch (error) {
-    console.error("Error fetching moderations:", error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error("Error fetching moderations:", error);
+    next(error);
   }
 }
 
-export async function updateModeration(req, res) {
+export async function updateModeration(req, res, next) {
   try {
     const params = req.validatedParams || req.params;
     const { id } = params;
@@ -443,12 +501,12 @@ export async function updateModeration(req, res) {
       result: data,
     });
   } catch (error) {
-    console.error("Error updating moderation:", error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error("Error updating moderation:", error);
+    next(error);
   }
 }
 
-export async function deleteModeration(req, res) {
+export async function deleteModeration(req, res, next) {
   try {
     const params = req.validatedParams || req.params;
     const { id } = params;
@@ -464,7 +522,7 @@ export async function deleteModeration(req, res) {
       message: "Report deleted successfully",
     });
   } catch (error) {
-    console.error("Error deleting moderation:", error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error("Error deleting moderation:", error);
+    next(error);
   }
 }

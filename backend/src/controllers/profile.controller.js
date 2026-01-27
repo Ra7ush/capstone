@@ -1,20 +1,36 @@
 import supabase from "../config/db.js";
+import { getOrSet, invalidatePattern } from "../config/redis.js";
+import { logger } from "../config/logger.js";
 
-export async function getProfile(req, res) {
+export async function getProfile(req, res, next) {
   try {
     const { id } = req.params;
-    console.log("GET /api/profile", id);
+    const cacheKey = `profile:${id}`;
+    logger.debug(`[getProfile] id=${id} cacheKey=${cacheKey}`);
 
-    const { data, error } = await supabase
-      .from("users")
-      .select("*, creators(*)")
-      .eq("id", id)
-      .single();
+    const data = await getOrSet(
+      cacheKey,
+      async () => {
+        logger.debug(
+          `[getProfile] Cache miss -> fetching from Supabase for ${id}`,
+        );
+        const { data, error } = await supabase
+          .from("users")
+          .select("*, creators(*)")
+          .eq("id", id)
+          .single();
 
-    if (error) {
-      console.error("Supabase error in getProfile:", error);
-      return res.status(500).json({ success: false, error: error.message });
-    }
+        if (error) {
+          logger.error("[getProfile] Supabase error:", error);
+          throw error;
+        }
+        logger.debug(
+          `[getProfile] Supabase fetch success, will cache key: ${cacheKey}`,
+        );
+        return data;
+      },
+      3600,
+    );
 
     if (!data) {
       return res
@@ -28,20 +44,20 @@ export async function getProfile(req, res) {
       data.verification_status = data.creators.verification_status;
     }
 
+    logger.debug(`[getProfile] Returning profile for id=${id}`);
     return res.status(200).json({ success: true, data });
   } catch (error) {
-    console.error("Exception in getProfile:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function updateProfile(req, res) {
+export async function updateProfile(req, res, next) {
   try {
     const { id } = req.params;
     const { full_name, username, bio } = req.body;
     const authenticatedUserId = req.user?.id;
 
-    console.log("PUT /api/profile", {
+    logger.info("PUT /api/profile", {
       id,
       full_name,
       username,
@@ -51,7 +67,7 @@ export async function updateProfile(req, res) {
 
     // Security check: confirm the user is updating themselves
     if (id !== authenticatedUserId) {
-      console.warn("Unauthorized update attempt:", { id, authenticatedUserId });
+      logger.warn("Unauthorized update attempt:", { id, authenticatedUserId });
       return res
         .status(403)
         .json({ success: false, error: "Unauthorized update" });
@@ -69,7 +85,7 @@ export async function updateProfile(req, res) {
         .eq("id", id);
 
       if (userError) {
-        console.error("Supabase error updating user:", userError);
+        logger.error("Supabase error updating user:", userError);
         throw userError;
       }
     }
@@ -82,21 +98,25 @@ export async function updateProfile(req, res) {
         .eq("user_id", id);
 
       if (creatorError) {
-        console.error("Supabase error updating creator bio:", creatorError);
+        logger.error("Supabase error updating creator bio:", creatorError);
         throw creatorError;
       }
     }
+
+    // 3. Invalidate cache for this profile
+    const cacheKey = `profile:${id}`;
+    await invalidatePattern(cacheKey);
+    logger.debug("[updateProfile] Cache invalidated for:", cacheKey);
 
     return res
       .status(200)
       .json({ success: true, message: "Profile updated successfully" });
   } catch (error) {
-    console.error("Exception in updateProfile:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function deleteProfile(req, res) {
+export async function deleteProfile(req, res, next) {
   try {
     const { id } = req.params;
     const authenticatedUserId = req.user?.id;
@@ -108,31 +128,36 @@ export async function deleteProfile(req, res) {
     const { error } = await supabase.from("users").delete().eq("id", id);
     if (error) throw error;
 
+    // Invalidate cache for this profile
+    const cacheKey = `profile:${id}`;
+    await invalidatePattern(cacheKey);
+    logger.debug("[deleteProfile] Cache invalidated for:", cacheKey);
+
     return res.status(200).json({ success: true, message: "Profile deleted" });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function getNotifications(req, res) {
+export async function getNotifications(req, res, next) {
   try {
     return res.status(200).json({ success: true, data: [] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
 
-export async function markNotificationAsRead(req, res) {
+export async function markNotificationAsRead(req, res, next) {
   try {
     return res.status(200).json({ success: true });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }
-export async function searchProfiles(req, res) {
+export async function searchProfiles(req, res, next) {
   try {
     const { q } = req.query;
-    console.log("GET /api/profile/search", q);
+    logger.info(`GET /api/profile/search q=${q}`);
 
     if (!q || q.length < 2) {
       return res.status(200).json({ success: true, data: [] });
@@ -140,7 +165,7 @@ export async function searchProfiles(req, res) {
 
     const normalizedQ = q.startsWith("@") ? q.substring(1) : q;
     const escapedQ = normalizedQ.replace(/[%_\\]/g, "\\$&");
-    console.log(
+    logger.debug(
       `[Search] Original: "${q}", Normalized: "${normalizedQ}", Current User: ${req.user.id}`,
     );
 
@@ -151,17 +176,16 @@ export async function searchProfiles(req, res) {
       .neq("id", req.user.id) // Don't include self
       .limit(10);
 
-    console.log(`[Search] Found ${data?.length || 0} users for "${escapedQ}"`);
+    logger.debug(`[Search] Found ${data?.length || 0} users for "${escapedQ}"`);
     if (data)
-      console.log(`[Search] Result IDs: ${data.map((u) => u.id).join(", ")}`);
+      logger.debug(`[Search] Result IDs: ${data.map((u) => u.id).join(", ")}`);
     if (error) {
-      console.error("Supabase error in searchProfiles:", error);
+      logger.error("Supabase error in searchProfiles:", error);
       throw error;
     }
 
     return res.status(200).json({ success: true, data });
   } catch (error) {
-    console.error("Exception in searchProfiles:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    next(error);
   }
 }

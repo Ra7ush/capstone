@@ -131,7 +131,7 @@ export function useCommunity(communityId?: string) {
   // Helper to update all instances of a post across all pages
   const updateFeedPost = (
     postId: string,
-    updater: (post: Post) => Post | null
+    updater: (post: Post) => Post | null,
   ) => {
     queryClient.setQueryData<InfiniteData<FeedResponse>>(
       ["posts", communityId],
@@ -146,7 +146,7 @@ export function useCommunity(communityId?: string) {
               .filter((post): post is Post => post !== null),
           })),
         };
-      }
+      },
     );
   };
 
@@ -157,7 +157,7 @@ export function useCommunity(communityId?: string) {
     onMutate: async (newPost) => {
       await queryClient.cancelQueries({ queryKey: ["posts", communityId] });
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
-        ["posts", communityId]
+        ["posts", communityId],
       );
 
       if (user?.profile) {
@@ -192,10 +192,10 @@ export function useCommunity(communityId?: string) {
               pages: old.pages.map((page, index) =>
                 index === 0
                   ? { ...page, data: [optimisticPost, ...page.data] }
-                  : page
+                  : page,
               ),
             };
-          }
+          },
         );
       }
 
@@ -223,7 +223,7 @@ export function useCommunity(communityId?: string) {
     onMutate: async (postId) => {
       await queryClient.cancelQueries({ queryKey: ["posts", communityId] });
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
-        ["posts", communityId]
+        ["posts", communityId],
       );
 
       // Optimistic update - instant feedback like Instagram/Facebook
@@ -281,7 +281,7 @@ export function useCommunity(communityId?: string) {
     onMutate: async (postId) => {
       await queryClient.cancelQueries({ queryKey: ["posts", communityId] });
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
-        ["posts", communityId]
+        ["posts", communityId],
       );
 
       // Optimistic update - instant feedback like Instagram/Facebook
@@ -379,7 +379,7 @@ export function useCommunity(communityId?: string) {
       if (context?.previousComments) {
         queryClient.setQueryData(
           ["comments", context.postId],
-          context.previousComments
+          context.previousComments,
         );
       }
       if (context?.previousFeed) {
@@ -399,7 +399,7 @@ export function useCommunity(communityId?: string) {
     onMutate: async (postId) => {
       await queryClient.cancelQueries({ queryKey: ["posts"] });
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
-        ["posts"]
+        ["posts"],
       );
 
       updateFeedPost(postId, () => null); // null will filter it out
@@ -427,11 +427,11 @@ export function useCommunity(communityId?: string) {
         postId,
       ]);
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
-        ["posts"]
+        ["posts"],
       );
 
       queryClient.setQueryData<Comment[]>(["comments", postId], (old) =>
-        old?.filter((c) => c.id !== commentId)
+        old?.filter((c) => c.id !== commentId),
       );
 
       // Optimistically decrement comment count on post
@@ -446,7 +446,7 @@ export function useCommunity(communityId?: string) {
       if (context?.previousComments) {
         queryClient.setQueryData(
           ["comments", context.postId],
-          context.previousComments
+          context.previousComments,
         );
       }
       if (context?.previousFeed) {
@@ -475,8 +475,8 @@ export function useCommunity(communityId?: string) {
         old?.map((c) =>
           c.id === commentId
             ? { ...c, has_liked: true, likes_count: (c.likes_count || 0) + 1 }
-            : c
-        )
+            : c,
+        ),
       );
 
       return { previousComments, postId };
@@ -485,7 +485,7 @@ export function useCommunity(communityId?: string) {
       if (context?.previousComments) {
         queryClient.setQueryData(
           ["comments", context.postId],
-          context.previousComments
+          context.previousComments,
         );
       }
     },
@@ -514,8 +514,8 @@ export function useCommunity(communityId?: string) {
                 has_liked: false,
                 likes_count: Math.max(0, (c.likes_count || 0) - 1),
               }
-            : c
-        )
+            : c,
+        ),
       );
 
       return { previousComments, postId };
@@ -524,7 +524,7 @@ export function useCommunity(communityId?: string) {
       if (context?.previousComments) {
         queryClient.setQueryData(
           ["comments", context.postId],
-          context.previousComments
+          context.previousComments,
         );
       }
     },
@@ -550,8 +550,8 @@ export function useCommunity(communityId?: string) {
 
       queryClient.setQueryData<Comment[]>(["comments", postId], (old) =>
         old?.map((c) =>
-          c.id === commentId ? { ...c, content, is_edited: true } : c
-        )
+          c.id === commentId ? { ...c, content, is_edited: true } : c,
+        ),
       );
 
       return { previousComments, postId };
@@ -560,7 +560,7 @@ export function useCommunity(communityId?: string) {
       if (context?.previousComments) {
         queryClient.setQueryData(
           ["comments", context.postId],
-          context.previousComments
+          context.previousComments,
         );
       }
     },
@@ -607,7 +607,7 @@ export function useCommunity(communityId?: string) {
           (old) => ({
             success: true,
             data: [optimisticMembership, ...(old?.data || [])],
-          })
+          }),
         );
       }
 
@@ -617,7 +617,7 @@ export function useCommunity(communityId?: string) {
       if (context?.previousJoined) {
         queryClient.setQueryData(
           ["communities", "joined"],
-          context.previousJoined
+          context.previousJoined,
         );
       }
     },
@@ -643,7 +643,7 @@ export function useCommunity(communityId?: string) {
         data: Community[];
       }>(["communities", "discover", undefined]);
       const fullCommunity = discoverData?.data.find(
-        (c) => c.id === communityId
+        (c) => c.id === communityId,
       );
 
       if (user?.id && fullCommunity) {
@@ -663,7 +663,7 @@ export function useCommunity(communityId?: string) {
           (old) => ({
             success: true,
             data: [...(old?.data || []), optimisticMembership],
-          })
+          }),
         );
       }
 
@@ -673,7 +673,7 @@ export function useCommunity(communityId?: string) {
       if (context?.previousJoined) {
         queryClient.setQueryData(
           ["communities", "joined"],
-          context.previousJoined
+          context.previousJoined,
         );
       }
     },
@@ -697,7 +697,7 @@ export function useCommunity(communityId?: string) {
         (old) => ({
           success: true,
           data: old?.data.filter((m) => m.community_id !== communityId) || [],
-        })
+        }),
       );
 
       return { previousJoined };
@@ -706,7 +706,7 @@ export function useCommunity(communityId?: string) {
       if (context?.previousJoined) {
         queryClient.setQueryData(
           ["communities", "joined"],
-          context.previousJoined
+          context.previousJoined,
         );
       }
     },
