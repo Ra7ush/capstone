@@ -14,6 +14,13 @@ export function setupRealtimeSync() {
       { event: "*", schema: "public", table: "users" },
       async (payload) => {
         const userId = payload.new?.id || payload.old?.id;
+        if (!userId) {
+          logger.warn(
+            "[Realtime] User change missing id; invalidating dashboard",
+          );
+          await invalidatePattern("admin:dashboard:*");
+          return;
+        }
         logger.debug(`[Realtime] User change detected for: ${userId}`);
 
         await Promise.all([
@@ -40,6 +47,16 @@ export function setupRealtimeSync() {
       { event: "*", schema: "public", table: "creators" },
       async (payload) => {
         const userId = payload.new?.user_id || payload.old?.user_id;
+        if (!userId) {
+          +logger.warn(
+            "[Realtime] Creator stats missing user_id; invalidating finance",
+          );
+          await Promise.all([
+            invalidatePattern("admin:finance:*"),
+            invalidatePattern("admin:dashboard:*"),
+          ]);
+          return;
+        }
         logger.debug(`[Realtime] Creator stats changed for: ${userId}`);
         await Promise.all([
           invalidatePattern(`creator_stats:${userId}`),
@@ -78,6 +95,13 @@ export function setupRealtimeSync() {
       { event: "*", schema: "public", table: "comments" },
       async (payload) => {
         const postId = payload.new?.post_id || payload.old?.post_id;
+        if (!postId) {
+          logger.warn(
+            "[Realtime] Comment change missing post_id; invalidating all comments",
+          );
+          await invalidatePattern("comments:post:*");
+          return;
+        }
         logger.debug(`[Realtime] Comment change detected for post: ${postId}`);
         await invalidatePattern(`comments:post:${postId}`);
       },
@@ -101,6 +125,16 @@ export function setupRealtimeSync() {
         const followerId = payload.new?.follower_id || payload.old?.follower_id;
         const followingId =
           payload.new?.following_id || payload.old?.following_id;
+        if (!followerId || !followingId) {
+          logger.warn(
+            "[Realtime] Follow change missing ids; invalidating all social",
+          );
+          await Promise.all([
+            invalidatePattern("social:followers:*"),
+            invalidatePattern("social:following:*"),
+          ]);
+          return;
+        }
         logger.debug(
           `[Realtime] Follow changed: ${followerId} -> ${followingId}`,
         );

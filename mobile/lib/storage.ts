@@ -17,6 +17,7 @@ try {
   );
 }
 
+const memoryFallback = new Map<string, string>();
 /**
  * Storage wrapper for synchronous access.
  * Note: In Expo Go (AsyncStorage), this won't be truly synchronous for writes/reads
@@ -29,12 +30,13 @@ export const mmkvStorage = {
     }
     // Fallback: This is tricky because AsyncStorage is async.
     // For now, we return null to avoid crashing, but mmkvStorageAsync is preferred.
-    return null;
+    return memoryFallback.get(key) ?? null;
   },
   setItem: (key: string, value: string): void => {
     if (isMMKVAvailable) {
       storageInstance.set(key, value);
     } else {
+      memoryFallback.set(key, value);
       AsyncStorage.setItem(key, value).catch(console.error);
     }
   },
@@ -42,6 +44,7 @@ export const mmkvStorage = {
     if (isMMKVAvailable) {
       storageInstance.remove(key);
     } else {
+      memoryFallback.delete(key);
       AsyncStorage.removeItem(key).catch(console.error);
     }
   },

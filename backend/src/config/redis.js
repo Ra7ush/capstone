@@ -1,5 +1,6 @@
 import Redis from "ioredis";
 import { ENV } from "./env.js";
+import { logger } from "./logger.js";
 
 export const redisClient = new Redis({
   host: ENV.REDIS_HOST,
@@ -18,19 +19,19 @@ export const redisClient = new Redis({
 });
 
 redisClient.on("error", (err) => {
-  console.error("Redis Client Error:", err);
+  logger.error("Redis Client Error:", err);
 });
 
 redisClient.on("connect", () => {
-  console.log("Redis client connected");
+  logger.info("Redis client connected");
 });
 
 redisClient.on("ready", () => {
-  console.log("Redis client ready");
+  logger.info("Redis client ready");
 });
 
 redisClient.on("end", () => {
-  console.log("Redis client disconnected");
+  logger.info("Redis client disconnected");
 });
 
 export async function getCache(key) {
@@ -71,14 +72,36 @@ export async function deleteCache(key) {
 
 export async function invalidatePattern(pattern) {
   try {
-    const keys = await redisClient.keys(pattern);
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-      console.log(`Invalidated ${keys.length} cache keys matching ${pattern}`);
+    // const keys = await redisClient.keys(pattern);
+    // if (keys.length > 0) {
+    //   await redisClient.del(...keys);
+    //   console.log(`Invalidated ${keys.length} cache keys matching ${pattern}`);
+    // }
+    let cursor = "0";
+    let totalDeleted = 0;
+
+    do {
+      const [newCursor, keys] = await redisClient.scan(
+        cursor,
+        "MATCH",
+        pattern,
+        "COUNT",
+        100,
+      );
+      cursor = newCursor;
+
+      if (keys.length > 0) {
+        await redisClient.del(...keys);
+        totalDeleted += keys.length;
+      }
+    } while (cursor !== "0");
+
+    if (totalDeleted > 0) {
+      logger.info(`Invalidated ${totalDeleted} cache keys matching ${pattern}`);
     }
-    return keys.length;
+    return totalDeleted;
   } catch (error) {
-    console.error("Error invalidating cache pattern:", error);
+    logger.error("Error invalidating cache pattern:", error);
     return 0;
   }
 }

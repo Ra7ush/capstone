@@ -110,12 +110,16 @@ export function useChat(conversationId: string, userId?: string) {
     messages: any[];
     otherUser: any;
   } | null>(null);
-
   // Load cached messages on mount (instant load)
   useEffect(() => {
-    if (!conversationId) return;
-
+    if (!conversationId) {
+      setCachedData(null);
+      return;
+    }
+    let isActive = true;
+    setCachedData(null);
     getCachedMessages(conversationId).then((cached) => {
+      if (!isActive) return;
       if (cached) {
         setCachedData({
           messages: cached.messages,
@@ -123,8 +127,10 @@ export function useChat(conversationId: string, userId?: string) {
         });
       }
     });
+    return () => {
+      isActive = false;
+    };
   }, [conversationId]);
-
   // Fetch messages with infinite scroll
   const {
     data,

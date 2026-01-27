@@ -118,14 +118,14 @@ export async function getAllUsers(req, res, next) {
       )
       .order("updated_at", { ascending: false });
 
-    logger.debug("getAllUsers data:", data);
+    logger.debug("getAllUsers count:", data?.length ?? 0);
 
     if (error) {
       throw error;
     }
     res.status(200).json({ success: true, data });
   } catch (error) {
-    console.log(error);
+    logger.error("Error fetching all users:", error);
     next(error);
   }
 }
@@ -174,7 +174,15 @@ export async function updateUser(req, res, next) {
     res.status(200).json({ message: "User updated successfully", data });
 
     // Invalidate dashboard stats since user counts/statuses might have changed
-    await invalidatePattern("admin:dashboard:*");
+    // await invalidatePattern("admin:dashboard:*");
+    try {
+      await invalidatePattern("admin:dashboard:*");
+    } catch (cacheError) {
+      logger.warn(
+        "Cache invalidation failed for admin:dashboard:*",
+        cacheError,
+      );
+    }
   } catch (error) {
     console.log(error);
     next(error);
@@ -192,7 +200,15 @@ export async function deleteUser(req, res, next) {
     res.status(200).json({ message: "User deleted successfully" });
 
     // Invalidate dashboard stats
-    await invalidatePattern("admin:dashboard:*");
+    // await invalidatePattern("admin:dashboard:*");
+    try {
+      await invalidatePattern("admin:dashboard:*");
+    } catch (cacheError) {
+      logger.warn(
+        "Cache invalidation failed for admin:dashboard:*",
+        cacheError,
+      );
+    }
   } catch (error) {
     console.log(error);
     next(error);
@@ -257,7 +273,7 @@ export async function getTransactionsHistory(req, res, next) {
       }),
     }));
 
-    logger.debug("Formatted transaction data:", formattedData);
+    logger.debug("Formatted transaction count:", formattedData?.length ?? 0);
     return res.status(200).json({ success: true, data: formattedData });
   } catch (error) {
     logger.error("Error fetching history:", error);
@@ -278,10 +294,21 @@ export async function processAllPayouts(req, res, next) {
     });
 
     // Invalidate finance status and dashboard stats
-    await Promise.all([
-      invalidatePattern("admin:finance:*"),
-      invalidatePattern("admin:dashboard:*"),
-    ]);
+    // await Promise.all([
+    //   invalidatePattern("admin:finance:*"),
+    //   invalidatePattern("admin:dashboard:*"),
+    // ]);
+    try {
+      await Promise.all([
+        invalidatePattern("admin:finance:*"),
+        invalidatePattern("admin:dashboard:*"),
+      ]);
+    } catch (cacheError) {
+      logger.warn(
+        "Cache invalidation failed for admin:finance:* or admin:dashboard:*",
+        cacheError,
+      );
+    }
   } catch (error) {
     logger.error("Error processing payouts:", error);
     next(error);
@@ -304,10 +331,21 @@ export async function processSinglePayout(req, res, next) {
     });
 
     // Invalidate finance status and dashboard stats
-    await Promise.all([
-      invalidatePattern("admin:finance:*"),
-      invalidatePattern("admin:dashboard:*"),
-    ]);
+    // await Promise.all([
+    //   invalidatePattern("admin:finance:*"),
+    //   invalidatePattern("admin:dashboard:*"),
+    // ]);
+    try {
+      await Promise.all([
+        invalidatePattern("admin:finance:*"),
+        invalidatePattern("admin:dashboard:*"),
+      ]);
+    } catch (cacheError) {
+      logger.warn(
+        "Cache invalidation failed for admin:finance:* or admin:dashboard:*",
+        cacheError,
+      );
+    }
   } catch (error) {
     logger.error("Error processing payout:", error);
     next(error);

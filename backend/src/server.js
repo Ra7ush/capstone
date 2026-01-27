@@ -14,6 +14,7 @@ import { redisClient } from "./config/redis.js";
 import serviceRouter from "./routes/service.route.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
 import { setupRealtimeSync } from "./config/realtimeSync.js";
+import { logger } from "./config/logger.js";
 
 const __dirname = path.resolve();
 
@@ -21,10 +22,21 @@ const app = express();
 await redisClient.connect();
 
 // Start real-time cache invalidation listener
-setupRealtimeSync();
-
-// ============ Request Logger ============
-import { logger } from "./config/logger.js";
+// setupRealtimeSync();
+// Connect to Redis with timeout - don't block server startup
+try {
+  await Promise.race([
+    redisClient.connect(),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Redis connection timeout")), 5000),
+    ),
+  ]);
+} catch (err) {
+  logger.warn(
+    "Redis connection failed, server starting without cache:",
+    err.message,
+  );
+}
 
 // ============ Request Logger ============
 app.use((req, res, next) => {
