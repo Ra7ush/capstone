@@ -364,6 +364,7 @@ export async function createModule(req, res, next) {
     let moduleData = null;
     let retries = 0;
     const MAX_RETRIES = 3;
+    let lastError = null;
 
     while (retries < MAX_RETRIES) {
       try {
@@ -393,6 +394,7 @@ export async function createModule(req, res, next) {
         if (error) {
           // Check for unique constraint violation (PostgreSQL code 23505)
           if (error.code === "23505") {
+            lastError = error;
             retries++;
             continue;
           }
@@ -402,11 +404,15 @@ export async function createModule(req, res, next) {
         moduleData = data;
         break;
       } catch (err) {
+        lastError = err;
         if (retries >= MAX_RETRIES - 1) throw err;
         retries++;
       }
     }
 
+    if (!moduleData) {
+      throw lastError || new Error("Failed to create module after retries");
+    }
     res.status(201).json({ success: true, data: moduleData });
   } catch (error) {
     logger.error("Create module error:", error);
@@ -598,7 +604,7 @@ export async function createLesson(req, res, next) {
     let lessonData = null;
     let retries = 0;
     const MAX_RETRIES = 3;
-
+    let lastError = null;
     while (retries < MAX_RETRIES) {
       try {
         // Get max order_index for lessons in this module
@@ -609,9 +615,7 @@ export async function createLesson(req, res, next) {
           .order("order_index", { ascending: false })
           .limit(1)
           .single();
-
         const order_index = (maxOrder?.order_index || 0) + 1;
-
         const { data, error } = await supabase
           .from("lessons")
           .insert([
@@ -627,24 +631,26 @@ export async function createLesson(req, res, next) {
           ])
           .select()
           .single();
-
         if (error) {
           // Check for unique constraint violation (PostgreSQL code 23505)
           if (error.code === "23505") {
+            lastError = error;
             retries++;
             continue;
           }
           throw error;
         }
-
         lessonData = data;
         break;
       } catch (err) {
+        lastError = err;
         if (retries >= MAX_RETRIES - 1) throw err;
         retries++;
       }
     }
-
+    if (!lessonData) {
+      throw lastError || new Error("Failed to create lesson after retries");
+    }
     res.status(201).json({ success: true, data: lessonData });
   } catch (error) {
     logger.error("Create lesson error:", error);
