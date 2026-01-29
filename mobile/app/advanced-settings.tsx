@@ -10,15 +10,23 @@ export default function AdvancedSettings() {
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailUpdates, setEmailUpdates] = useState(false);
 
-  interface SettingItem {
-    id: string;
-    icon: string;
-    label: string;
-    value?: string | boolean;
-    type: "link" | "switch";
-    onPress?: () => void;
-    onToggle?: (val: boolean) => void;
-  }
+  type SettingItem =
+    | {
+        id: string;
+        icon: string;
+        label: string;
+        type: "switch";
+        value: boolean;
+        onToggle: (val: boolean) => void;
+      }
+    | {
+        id: string;
+        icon: string;
+        label: string;
+        type: "link";
+        value?: string;
+        onPress: () => void;
+      };
 
   const settingGroups: { title: string; items: SettingItem[] }[] = [
     {
@@ -117,7 +125,7 @@ export default function AdvancedSettings() {
 
                       {item.type === "switch" ? (
                         <Switch
-                          value={item.value as boolean}
+                          value={item.value}
                           onValueChange={item.onToggle}
                           trackColor={{ false: "#E5E7EB", true: "#000000" }}
                           thumbColor="#FFFFFF"

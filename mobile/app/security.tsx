@@ -126,8 +126,23 @@ export default function Security() {
     isSupported: isBiometricsSupported,
     isEnrolled: isBiometricsEnrolled,
     isEnabled: isBiometricsEnabled,
+    authType,
     toggleBiometrics,
   } = useBiometrics();
+
+  const getBiometricName = () => {
+    if (authType.includes(1)) return "FaceID"; // AuthenticationType.FACIAL_RECOGNITION
+    if (authType.includes(2)) return "TouchID/Fingerprint"; // AuthenticationType.FINGERPRINT
+    if (authType.includes(3)) return "Iris Scan"; // AuthenticationType.IRIS
+    return "Biometrics";
+  };
+
+  const getBiometricDescription = () => {
+    if (!isBiometricsSupported) return "Hardware not supported on this device.";
+    if (!isBiometricsEnrolled)
+      return `Please set up ${getBiometricName()} in your device settings first.`;
+    return `Use ${getBiometricName()} to secure your financial operations and access.`;
+  };
 
   // Basic States for placeholders
   const [dataSharing, setDataSharing] = useState(true);
@@ -305,11 +320,7 @@ export default function Security() {
             {renderToggle(
               "finger-print-outline",
               "Biometric Authentication",
-              !isBiometricsSupported
-                ? "Hardare not supported on this device."
-                : !isBiometricsEnrolled
-                  ? "Please set up biometrics in your device settings."
-                  : "Use FaceID or Fingerprint to secure your financial operations.",
+              getBiometricDescription(),
               isBiometricsEnabled,
               async (val) => {
                 const success = await toggleBiometrics(val);

@@ -3,6 +3,8 @@ import { serviceApi } from "@/lib/api";
 import type { Service, CourseModule, Lesson, CourseResource } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import { decode } from "base64-arraybuffer";
+import * as FileSystem from "expo-file-system/legacy";
 
 // ============================================
 // Image Upload Helper
@@ -23,19 +25,18 @@ export async function uploadCourseImage(uri: string): Promise<string> {
     const originalName = uri.split("/").pop();
     const fileName = `${originalName?.split(".")[0] || "course"}_${Date.now()}.jpg`;
 
-    const formData = new FormData();
-    formData.append("file", {
-      uri: finalUri,
-      name: fileName,
-      type: "image/jpeg",
-    } as any);
+    // Read file as base64 and convert to ArrayBuffer
+    const base64 = await FileSystem.readAsStringAsync(finalUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    const fileData = decode(base64);
 
     // Use 'community' bucket with 'courses' folder path
     const filePath = `courses/${fileName}`;
 
     const { data, error } = await supabase.storage
       .from("community")
-      .upload(filePath, formData, {
+      .upload(filePath, fileData, {
         cacheControl: "3600",
         upsert: false,
         contentType: "image/jpeg",
