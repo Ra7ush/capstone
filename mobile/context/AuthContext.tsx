@@ -12,6 +12,7 @@ import type { AuthState, VerificationStatus } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { communityApi } from "@/lib/api";
 import { clearAllMessageCaches } from "@/lib/messageCache";
+import * as Linking from "expo-linking";
 
 const PENDING_EMAIL_KEY = "@pending_verification_email";
 
@@ -19,6 +20,7 @@ type AuthContextType = AuthState & {
   setPendingEmail: (email: string) => Promise<void>;
   clearPendingEmail: () => Promise<void>;
   refresh: () => Promise<void>;
+  verifyMFA: (code: string) => Promise<{ error: any }>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -50,6 +52,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data: { session },
       } = await supabase.auth.getSession();
 
+      const {
+        data: { user: freshUser },
+      } = await supabase.auth.getUser();
+
+      const { data: mfaData } =
+        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      const aal = mfaData?.currentLevel as "aal1" | "aal2" | undefined;
+
       if (!session) {
         setState({
           isLoading: false,
@@ -62,9 +72,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const {
-        data: { user: freshUser },
-      } = await supabase.auth.getUser();
       const user = freshUser || session.user;
       const isEmailVerified = !!user.email_confirmed_at;
       let hasProfile = false;
@@ -75,7 +82,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isEmailVerified) {
         const { data: profile } = await supabase
           .from("users")
-          .select("*, creators(verification_status, bio)")
+          .select(
+            "*, creators(verification_status, bio, social_links, portfolio_url)",
+          )
           .eq("id", user.id)
           .single();
 
@@ -85,6 +94,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ...profile,
             bio: profile.creators?.bio,
             verification_status: profile.creators?.verification_status,
+            social_links: profile.creators?.social_links,
+            portfolio_url: profile.creators?.portfolio_url,
           };
           if (profile.role === "creator" && profile.creators) {
             verification_status = profile.creators.verification_status;
@@ -117,7 +128,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           profile: userProfile,
           verification_status,
           creatorCommunityId,
+          mfa_enabled: !!mfaData?.nextLevel && mfaData.nextLevel === "aal2",
         },
+        aal,
       });
     } catch (error) {
       console.error("Auth context check error:", error);
@@ -125,6 +138,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       isCheckingAuth.current = false;
     }
+  }, []);
+
+  const handleDeepLink = async (url: string | null) => {
+    if (!url) return;
+
+    // Supabase auth callback URL parsing
+    if (url.includes("access_token") || url.includes("refresh_token")) {
+      // Try extracting from hash (Supabase default) or search params
+      const fragment = url.split("#")[1] || url.split("?")[1];
+      if (!fragment) return;
+
+      const params = new URLSearchParams(fragment);
+      const access_token = params.get("access_token");
+      const refresh_token = params.get("refresh_token");
+
+      if (access_token && refresh_token) {
+        await supabase.auth.setSession({
+          access_token,
+          refresh_token,
+        });
+      }
+    }
+  };
+
+  useEffect(() => {
+    // Check initial URL
+    Linking.getInitialURL().then(handleDeepLink);
+
+    // Listen for incoming links
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      handleDeepLink(url);
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -212,10 +261,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, pendingEmail: null }));
   };
 
+  const verifyMFA = async (code: string) => {
+    const { data: factors, error: factorsError } =
+      await supabase.auth.mfa.listFactors();
+    if (factorsError || !factors?.totp[0])
+      return { error: factorsError || { message: "No MFA factor found" } };
+
+    const totpFactor = factors.totp[0];
+
+    const { data: challenge } = await supabase.auth.mfa.challenge({
+      factorId: totpFactor.id,
+    });
+
+    if (challenge) {
+      const result = await supabase.auth.mfa.verify({
+        factorId: totpFactor.id,
+        challengeId: challenge.id,
+        code,
+      });
+      if (!result.error) await checkAuthState(false);
+      return result;
+    }
+    return { error: { message: "Failed to create challenge" } };
+  };
+
   const value = {
     ...state,
     setPendingEmail,
     clearPendingEmail,
+    verifyMFA,
     refresh: () => checkAuthState(false),
   };
 

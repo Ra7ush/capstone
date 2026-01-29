@@ -77,6 +77,8 @@ export async function updateProfile(req, res, next) {
     const userUpdates = {};
     if (full_name !== undefined) userUpdates.full_name = full_name;
     if (username !== undefined) userUpdates.username = username;
+    if (req.body.is_public !== undefined)
+      userUpdates.is_public = req.body.is_public;
 
     if (Object.keys(userUpdates).length > 0) {
       const { error: userError } = await supabase
@@ -169,9 +171,30 @@ export async function searchProfiles(req, res, next) {
       `[Search] Original: "${q}", Normalized: "${normalizedQ}", Current User: ${req.user.id}`,
     );
 
-    const { data, error } = await supabase
+    const { data: blockedData, error: blockedError } = await supabase
+      .from("user_blocks")
+      .select("blocked_id, blocker_id")
+      .or(`blocker_id.eq.${req.user.id},blocked_id.eq.${req.user.id}`);
+
+    if (blockedError) throw blockedError;
+
+    const blockedIds = [
+      ...new Set([
+        ...blockedData.map((b) => b.blocked_id),
+        ...blockedData.map((b) => b.blocker_id),
+      ]),
+    ];
+
+    let query = supabase
       .from("users")
       .select("id, username, full_name, role, profile_image_url")
+      .eq("is_public", true);
+
+    if (blockedIds.length > 0) {
+      query = query.not("id", "in", `(${blockedIds.join(",")})`);
+    }
+
+    const { data, error } = await query
       .or(`username.ilike.*${escapedQ}*,full_name.ilike.*${escapedQ}*`)
       .neq("id", req.user.id) // Don't include self
       .limit(10);

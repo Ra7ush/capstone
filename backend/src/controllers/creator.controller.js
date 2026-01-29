@@ -302,17 +302,91 @@ export async function getCreatorStats(req, res, next) {
 /**
  * Get creator profile
  */
-export async function getCreatorProfile(req, res) {
+export async function getCreatorProfile(req, res, next) {
   try {
-  } catch (error) {}
+    const { id } = req.params;
+    const cacheKey = `creator_profile:${id}`;
+
+    const data = await getOrSet(
+      cacheKey,
+      async () => {
+        const { data, error } = await supabase
+          .from("creators")
+          .select(
+            `
+            *,
+            user:users (
+              username,
+              full_name,
+              profile_image_url,
+              role
+            )
+          `,
+          )
+          .eq("user_id", id)
+          .single();
+
+        if (error) {
+          if (error.code === "PGRST116") return null;
+          throw error;
+        }
+        return data;
+      },
+      3600,
+    );
+
+    if (!data) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Creator not found" });
+    }
+
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
 }
 
 /**
  * Update creator profile
  */
-export async function updateCreatorProfile(req, res) {
+export async function updateCreatorProfile(req, res, next) {
   try {
-  } catch (error) {}
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { bio, social_links, portfolio_url } = req.body;
+
+    if (id !== userId) {
+      return res.status(403).json({ success: false, error: "Unauthorized" });
+    }
+
+    const updates = {};
+    if (bio !== undefined) updates.bio = bio;
+    if (social_links !== undefined) updates.social_links = social_links;
+    if (portfolio_url !== undefined) updates.portfolio_url = portfolio_url;
+    updates.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("creators")
+      .update(updates)
+      .eq("user_id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Invalidate caches
+    await invalidatePattern(`creator_profile:${id}`);
+    await invalidatePattern(`profile:${id}`);
+
+    res.status(200).json({
+      success: true,
+      message: "Creator profile updated successfully",
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
 }
 
 /**

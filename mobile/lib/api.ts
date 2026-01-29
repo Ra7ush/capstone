@@ -79,6 +79,14 @@ export const creatorApi = {
     const response = await api.get(`/api/creator/stats/${userId}`);
     return response.data.data;
   },
+  getProfile: async (userId: string) => {
+    const response = await api.get(`/api/creator/profile/${userId}`);
+    return response.data.data;
+  },
+  updateProfile: async (userId: string, data: any) => {
+    const response = await api.put(`/api/creator/profile/${userId}`, data);
+    return response.data.data;
+  },
 };
 
 export const communityApi = {
@@ -258,6 +266,21 @@ export const profileApi = {
     return response.data;
   },
 };
+
+export const blockApi = {
+  getBlockedUsers: async () => {
+    const response = await api.get("/api/block/list");
+    return response.data.data;
+  },
+  blockUser: async (userId: string) => {
+    const response = await api.post(`/api/block/${userId}`);
+    return response.data;
+  },
+  unblockUser: async (userId: string) => {
+    const response = await api.delete(`/api/block/${userId}`);
+    return response.data;
+  },
+};
 export const messageApi = {
   getConversations: async () => {
     const response = await api.get("/api/message");
@@ -299,6 +322,141 @@ export const messageApi = {
 
   deleteMessage: async (messageId: string) => {
     const response = await api.delete(`/api/message/${messageId}`);
+    return response.data;
+  },
+};
+
+export const serviceApi = {
+  // Services CRUD
+  getMyServices: async () => {
+    const response = await api.get("/api/service/mine");
+    return response.data;
+  },
+  getServiceById: async (id: string) => {
+    const response = await api.get(`/api/service/${id}`);
+    return response.data;
+  },
+  createService: async (data: {
+    title: string;
+    description?: string;
+    category?: string;
+    price?: number;
+    thumbnail_url?: string;
+  }) => {
+    const response = await api.post("/api/service", data);
+    return response.data;
+  },
+  updateService: async (
+    id: string,
+    data: {
+      title?: string;
+      description?: string;
+      category?: string;
+      price?: number;
+      thumbnail_url?: string;
+      status?: string;
+    },
+  ) => {
+    const response = await api.put(`/api/service/${id}`, data);
+    return response.data;
+  },
+  deleteService: async (id: string) => {
+    const response = await api.delete(`/api/service/${id}`);
+    return response.data;
+  },
+  publishService: async (id: string) => {
+    const response = await api.post(`/api/service/${id}/publish`);
+    return response.data;
+  },
+  unpublishService: async (id: string) => {
+    const response = await api.post(`/api/service/${id}/unpublish`);
+    return response.data;
+  },
+
+  // Modules
+  createModule: async (serviceId: string, data: { title: string }) => {
+    const response = await api.post(`/api/service/${serviceId}/modules`, data);
+    return response.data;
+  },
+  getModules: async (serviceId: string) => {
+    const response = await api.get(`/api/service/${serviceId}/modules`);
+    return response.data;
+  },
+  updateModule: async (
+    moduleId: string,
+    data: { title?: string; order_index?: number },
+  ) => {
+    const response = await api.put(`/api/service/modules/${moduleId}`, data);
+    return response.data;
+  },
+  deleteModule: async (moduleId: string) => {
+    const response = await api.delete(`/api/service/modules/${moduleId}`);
+    return response.data;
+  },
+
+  // Lessons
+  createLesson: async (
+    moduleId: string,
+    data: {
+      title: string;
+      description?: string;
+      video_url?: string;
+      video_duration?: number;
+      is_preview?: boolean;
+    },
+  ) => {
+    const response = await api.post(
+      `/api/service/modules/${moduleId}/lessons`,
+      data,
+    );
+    return response.data;
+  },
+  getLessons: async (moduleId: string) => {
+    const response = await api.get(`/api/service/modules/${moduleId}/lessons`);
+    return response.data;
+  },
+  updateLesson: async (
+    lessonId: string,
+    data: {
+      title?: string;
+      description?: string;
+      video_url?: string;
+      video_duration?: number;
+      is_preview?: boolean;
+      order_index?: number;
+    },
+  ) => {
+    const response = await api.put(`/api/service/lessons/${lessonId}`, data);
+    return response.data;
+  },
+  deleteLesson: async (lessonId: string) => {
+    const response = await api.delete(`/api/service/lessons/${lessonId}`);
+    return response.data;
+  },
+
+  // Resources
+  addResource: async (
+    serviceId: string,
+    data: {
+      title: string;
+      file_url: string;
+      file_type?: string;
+      file_size?: number;
+      lesson_id?: string;
+    },
+  ) => {
+    const response = await api.post(
+      `/api/service/${serviceId}/resources`,
+      data,
+    );
+    return response.data;
+  },
+  getResources: async (serviceId: string) => {
+    const response = await api.get(`/api/service/${serviceId}/resources`);
+    return response.data;
+  },
+  deleteResource: async (resourceId: string) => {
+    const response = await api.delete(`/api/service/resources/${resourceId}`);
     return response.data;
   },
 };
