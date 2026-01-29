@@ -91,6 +91,13 @@ export async function getServiceById(req, res, next) {
 
     if (error) throw error;
 
+    // Check authorization for draft services
+    if (data && data.status === "draft" && data.creator_id !== req.user?.id) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Service not found" });
+    }
+
     // Manual join for creator
     if (data && data.creator_id) {
       const { data: creatorData } = await supabase
@@ -354,32 +361,59 @@ export async function createModule(req, res, next) {
         .json({ success: false, error: "Service not found" });
     }
 
-    // Get max order_index
-    const { data: maxOrder } = await supabase
-      .from("course_modules")
-      .select("order_index")
-      .eq("service_id", serviceId)
-      .order("order_index", { ascending: false })
-      .limit(1)
-      .single();
+    let moduleData = null;
+    let retries = 0;
+    const MAX_RETRIES = 3;
+    let lastError = null;
 
-    const order_index = (maxOrder?.order_index || 0) + 1;
+    while (retries < MAX_RETRIES) {
+      try {
+        // Get max order_index
+        const { data: maxOrder } = await supabase
+          .from("course_modules")
+          .select("order_index")
+          .eq("service_id", serviceId)
+          .order("order_index", { ascending: false })
+          .limit(1)
+          .single();
 
-    const { data, error } = await supabase
-      .from("course_modules")
-      .insert([
-        {
-          service_id: serviceId,
-          title,
-          order_index,
-        },
-      ])
-      .select()
-      .single();
+        const order_index = (maxOrder?.order_index || 0) + 1;
 
-    if (error) throw error;
+        const { data, error } = await supabase
+          .from("course_modules")
+          .insert([
+            {
+              service_id: serviceId,
+              title,
+              order_index,
+            },
+          ])
+          .select()
+          .single();
 
-    res.status(201).json({ success: true, data });
+        if (error) {
+          // Check for unique constraint violation (PostgreSQL code 23505)
+          if (error.code === "23505") {
+            lastError = error;
+            retries++;
+            continue;
+          }
+          throw error;
+        }
+
+        moduleData = data;
+        break;
+      } catch (err) {
+        lastError = err;
+        if (retries >= MAX_RETRIES - 1) throw err;
+        retries++;
+      }
+    }
+
+    if (!moduleData) {
+      throw lastError || new Error("Failed to create module after retries");
+    }
+    res.status(201).json({ success: true, data: moduleData });
   } catch (error) {
     logger.error("Create module error:", error);
     next(error);
@@ -389,6 +423,26 @@ export async function createModule(req, res, next) {
 export async function getModulesByService(req, res, next) {
   try {
     const { serviceId } = req.params;
+    const userId = req.user?.id;
+
+    // Verify service visibility
+    const { data: service, error: serviceError } = await supabase
+      .from("services")
+      .select("status, creator_id")
+      .eq("id", serviceId)
+      .single();
+
+    if (serviceError || !service) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Service not found" });
+    }
+
+    if (service.status === "draft" && service.creator_id !== userId) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Service not found" });
+    }
 
     const { data, error } = await supabase
       .from("course_modules")
@@ -547,36 +601,57 @@ export async function createLesson(req, res, next) {
       return res.status(403).json({ success: false, error: "Not authorized" });
     }
 
-    // Get max order_index for lessons in this module
-    const { data: maxOrder } = await supabase
-      .from("lessons")
-      .select("order_index")
-      .eq("module_id", moduleId)
-      .order("order_index", { ascending: false })
-      .limit(1)
-      .single();
-
-    const order_index = (maxOrder?.order_index || 0) + 1;
-
-    const { data, error } = await supabase
-      .from("lessons")
-      .insert([
-        {
-          module_id: moduleId,
-          title,
-          description,
-          video_url,
-          video_duration: video_duration ? parseInt(video_duration) : null,
-          is_preview: is_preview || false,
-          order_index,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    res.status(201).json({ success: true, data });
+    let lessonData = null;
+    let retries = 0;
+    const MAX_RETRIES = 3;
+    let lastError = null;
+    while (retries < MAX_RETRIES) {
+      try {
+        // Get max order_index for lessons in this module
+        const { data: maxOrder } = await supabase
+          .from("lessons")
+          .select("order_index")
+          .eq("module_id", moduleId)
+          .order("order_index", { ascending: false })
+          .limit(1)
+          .single();
+        const order_index = (maxOrder?.order_index || 0) + 1;
+        const { data, error } = await supabase
+          .from("lessons")
+          .insert([
+            {
+              module_id: moduleId,
+              title,
+              description,
+              video_url,
+              video_duration: video_duration ? parseInt(video_duration) : null,
+              is_preview: is_preview || false,
+              order_index,
+            },
+          ])
+          .select()
+          .single();
+        if (error) {
+          // Check for unique constraint violation (PostgreSQL code 23505)
+          if (error.code === "23505") {
+            lastError = error;
+            retries++;
+            continue;
+          }
+          throw error;
+        }
+        lessonData = data;
+        break;
+      } catch (err) {
+        lastError = err;
+        if (retries >= MAX_RETRIES - 1) throw err;
+        retries++;
+      }
+    }
+    if (!lessonData) {
+      throw lastError || new Error("Failed to create lesson after retries");
+    }
+    res.status(201).json({ success: true, data: lessonData });
   } catch (error) {
     logger.error("Create lesson error:", error);
     next(error);
@@ -586,6 +661,38 @@ export async function createLesson(req, res, next) {
 export async function getLessonsByModule(req, res, next) {
   try {
     const { moduleId } = req.params;
+    const userId = req.user?.id;
+
+    // Verify visibility via module -> service
+    const { data: module, error: moduleError } = await supabase
+      .from("course_modules")
+      .select("service_id")
+      .eq("id", moduleId)
+      .single();
+
+    if (moduleError || !module) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Module not found" });
+    }
+
+    const { data: service, error: serviceError } = await supabase
+      .from("services")
+      .select("status, creator_id")
+      .eq("id", module.service_id)
+      .single();
+
+    if (serviceError || !service) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Service not found" });
+    }
+
+    if (service.status === "draft" && service.creator_id !== userId) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Service not found" });
+    }
 
     const { data, error } = await supabase
       .from("lessons")
@@ -782,6 +889,26 @@ export async function addResource(req, res, next) {
 export async function getResourcesByService(req, res, next) {
   try {
     const { serviceId } = req.params;
+    const userId = req.user?.id;
+
+    // Verify service visibility
+    const { data: service, error: serviceError } = await supabase
+      .from("services")
+      .select("status, creator_id")
+      .eq("id", serviceId)
+      .single();
+
+    if (serviceError || !service) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Service not found" });
+    }
+
+    if (service.status === "draft" && service.creator_id !== userId) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Service not found" });
+    }
 
     const { data, error } = await supabase
       .from("course_resources")

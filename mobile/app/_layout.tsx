@@ -106,10 +106,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       }
     } else if (hasProfile) {
       // Fully authenticated → should be in tabs group
-      if (
-        (inAuthGroup || inOnboarding || currentRoute === "mfa-verify") &&
-        aal !== "aal1"
-      ) {
+      if (inAuthGroup || inOnboarding || currentRoute === "mfa-verify") {
         router.replace("/(tabs)");
       }
     }
