@@ -11,11 +11,27 @@ import { communityApi, profileApi } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import LoadingScreen from "@/components/LoadingScreen";
 
-// Suppress SafeAreaView deprecation warning from dependencies
-LogBox.ignoreLogs(["SafeAreaView has been deprecated"]);
+// Suppress warnings from dependencies
+LogBox.ignoreLogs([
+  "SafeAreaView has been deprecated",
+  "No native splash screen registered",
+]);
+
+// Suppress SplashScreen errors in development (harmless in Expo Go)
+if (__DEV__) {
+  const originalHandler = ErrorUtils.getGlobalHandler();
+  ErrorUtils.setGlobalHandler((error, isFatal) => {
+    if (error?.message?.includes("No native splash screen registered")) {
+      return; // Silently ignore this specific error
+    }
+    originalHandler(error, isFatal);
+  });
+}
 
 // Keep splash screen visible while we check auth
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {
+  /* ignore */
+});
 
 // Create QueryClient with optimized defaults for instant loading
 const queryClient = new QueryClient({
@@ -41,13 +57,16 @@ const mmkvPersister = createAsyncStoragePersister({
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
-  const { isLoading, session, isEmailVerified, hasProfile } = useAuthState();
+  const { isLoading, session, isEmailVerified, hasProfile, aal } =
+    useAuthState();
 
   useEffect(() => {
     if (isLoading) return;
 
-    // Hide splash screen
-    SplashScreen.hideAsync();
+    // Hide splash screen safely
+    SplashScreen.hideAsync().catch(() => {
+      // Ignore error if splash screen is already hidden
+    });
 
     const currentRoute = segments.join("/");
     const inAuthGroup = segments[0] === "(auth)";
@@ -75,18 +94,26 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           params: { email: session.user.email },
         });
       }
+    } else if (session.user.mfa_enabled && aal === "aal1") {
+      // MFA needed
+      if (currentRoute !== "mfa-verify") {
+        router.replace("/mfa-verify");
+      }
     } else if (!hasProfile && !inTabsGroup) {
       // Verified but no profile → should be on onboarding
-      if (!inOnboarding) {
+      if (!inOnboarding && currentRoute !== "mfa-verify") {
         router.replace("/onboarding");
       }
     } else if (hasProfile) {
       // Fully authenticated → should be in tabs group
-      if (inAuthGroup || inOnboarding) {
+      if (
+        (inAuthGroup || inOnboarding || currentRoute === "mfa-verify") &&
+        aal !== "aal1"
+      ) {
         router.replace("/(tabs)");
       }
     }
-  }, [isLoading, session, isEmailVerified, hasProfile]);
+  }, [isLoading, session, isEmailVerified, hasProfile, aal]);
 
   if (isLoading) {
     return <LoadingScreen />;

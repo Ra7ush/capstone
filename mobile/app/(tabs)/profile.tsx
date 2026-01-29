@@ -35,7 +35,7 @@ export default function Profile() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState<"followers" | "following">(
-    "followers"
+    "followers",
   );
 
   const { followers, following, isLoadingFollowers, isLoadingFollowing } =
@@ -66,14 +66,22 @@ export default function Profile() {
     }
   };
 
-  const sections = [
+  interface SectionItem {
+    icon: string;
+    label: string;
+    route: string;
+    value?: string;
+    statusColor?: string;
+  }
+
+  const sections: { title: string; items: SectionItem[] }[] = [
     {
       title: "Account",
       items: [
         {
           icon: "person-outline",
           label: "Personal Information",
-          route: "/profile-edit",
+          route: "/profile-edit?mode=full",
         },
         {
           icon: "star-outline",
@@ -119,6 +127,42 @@ export default function Profile() {
       ],
     },
   ];
+
+  const creatorSection =
+    profile?.role === "creator"
+      ? {
+          title: "Creator Management",
+          items: [
+            {
+              icon: "layers-outline",
+              label: "Manage Services",
+              route: "/(tabs)/service",
+            },
+            {
+              icon: "shield-checkmark-outline",
+              label: "Verification Status",
+              route: "/verification-apply",
+              value:
+                profile?.verification_status === "pending"
+                  ? "Under Review"
+                  : undefined,
+              statusColor:
+                profile?.verification_status === "pending"
+                  ? "text-yellow-500"
+                  : undefined,
+            },
+            {
+              icon: "trending-up-outline",
+              label: "Analytics & Earnings",
+              route: "/advanced-settings", // Placeholder for now
+            },
+          ],
+        }
+      : null;
+
+  const allSections = creatorSection
+    ? [sections[0], creatorSection, ...sections.slice(1)]
+    : sections;
 
   return (
     <View className="flex-1 bg-white">
@@ -180,7 +224,7 @@ export default function Profile() {
               </View>
             </View>
             <TouchableOpacity
-              onPress={() => router.push("/profile-edit")}
+              onPress={() => router.push("/profile-edit?mode=basic")}
               className="w-10 h-10 rounded-full bg-white/10 items-center justify-center"
             >
               <Ionicons name="pencil" size={18} color="white" />
@@ -224,7 +268,7 @@ export default function Profile() {
 
         {/* Setting Groups */}
         <View className="px-6 py-8">
-          {sections.map((section, idx) => (
+          {allSections.map((section, idx) => (
             <View key={idx} className="mb-8">
               <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 px-1">
                 {section.title}
@@ -248,6 +292,13 @@ export default function Profile() {
                     <Text className="flex-1 text-black font-bold">
                       {item.label}
                     </Text>
+                    {item.value && (
+                      <Text
+                        className={`mr-2 text-[10px] font-black uppercase ${item.statusColor || "text-gray-400"}`}
+                      >
+                        {item.value}
+                      </Text>
+                    )}
                     <Ionicons
                       name="chevron-forward"
                       size={18}

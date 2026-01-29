@@ -12,6 +12,7 @@ import profileRouter from "./routes/profile.route.js";
 import messageRouter from "./routes/message.route.js";
 import { redisClient } from "./config/redis.js";
 import serviceRouter from "./routes/service.route.js";
+import blockRouter from "./routes/block.route.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
 import { setupRealtimeSync } from "./config/realtimeSync.js";
 import { logger } from "./config/logger.js";
@@ -113,6 +114,9 @@ app.use("/api/creator", creatorRouter);
 
 //Service routes
 app.use("/api/service", serviceRouter);
+
+// Block routes
+app.use("/api/block", blockRouter);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

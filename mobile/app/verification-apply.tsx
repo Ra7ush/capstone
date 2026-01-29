@@ -23,8 +23,14 @@ const VERIFICATION_DRAFT_KEY = "@verification_apply_draft";
 
 export default function VerificationApply() {
   const router = useRouter();
-  const { submitVerification, uploadImage, getCurrentUserId, isSubmitting } =
-    useVerification();
+  const {
+    submitVerification,
+    uploadImage,
+    getCurrentUserId,
+    isSubmitting,
+    verificationStatus,
+    isLoadingStatus,
+  } = useVerification();
 
   const [step, setStep] = useState(1);
   const [fullLegalName, setFullLegalName] = useState("");
@@ -282,11 +288,38 @@ export default function VerificationApply() {
     </View>
   );
 
-  if (isDraftLoading) {
+  if (isDraftLoading || isLoadingStatus) {
     return (
       <View className="flex-1 bg-black items-center justify-center">
         <ActivityIndicator size="large" color="#FF4D00" />
       </View>
+    );
+  }
+
+  if (verificationStatus === "pending") {
+    return (
+      <SafeAreaView className="flex-1 bg-black">
+        <View className="flex-1 px-6 items-center justify-center">
+          <View className="w-24 h-24 rounded-full bg-yellow-500/10 items-center justify-center mb-8">
+            <Ionicons name="time-outline" size={48} color="#EAB308" />
+          </View>
+          <Text className="text-3xl font-black text-white italic text-center mb-4">
+            Under<Text className="text-yellow-500">Review</Text>
+          </Text>
+          <Text className="text-gray-400 font-bold text-center leading-6 mb-12">
+            Your identity nodes are currently being synchronized with the Nexus
+            Protocol compliance engine. Our ambassadors will verify your
+            credentials shortly.
+          </Text>
+          <Button
+            title="Return to Protocol"
+            onPress={() => router.replace("/(tabs)/profile")}
+            variant="outline"
+            textColor="white"
+            className="w-full border-white/10"
+          />
+        </View>
+      </SafeAreaView>
     );
   }
 

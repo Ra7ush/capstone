@@ -5,74 +5,58 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
+  RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useMyServices } from "@/hooks/useServices";
+import type { Service } from "@/types";
 
-const CATEGORIES = ["All", "Digital", "Physical", "Services"];
+const STATUS_FILTERS = ["All", "Published", "Draft"];
 
-const MOCK_SERVICES = [
-  {
-    id: "1",
-    title: "Premium UI Kit - Nexus Edition",
-    category: "Digital",
-    price: 49,
-    sales: 124,
-    rating: 4.8,
-    image:
-      "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&auto=format&fit=crop&q=60",
-    status: "Active",
-  },
-  {
-    id: "2",
-    title: "1-on-1 Design Consultation",
-    category: "Services",
-    price: 150,
-    sales: 42,
-    rating: 5.0,
-    image:
-      "https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&auto=format&fit=crop&q=60",
-    status: "Active",
-  },
-  {
-    id: "3",
-    title: "Custom 3D Icon Set",
-    category: "Digital",
-    price: 29,
-    sales: 89,
-    rating: 4.7,
-    image:
-      "https://images.unsplash.com/photo-1626785774573-4b799315345d?w=800&auto=format&fit=crop&q=60",
-    status: "Draft",
-  },
-  {
-    id: "4",
-    title: "Modern Minimalist Poster",
-    category: "Physical",
-    price: 35,
-    sales: 56,
-    rating: 4.9,
-    image:
-      "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=800&auto=format&fit=crop&q=60",
-    status: "Active",
-  },
-];
-
-export default function Service() {
+export default function ServiceTab() {
   const router = useRouter();
-  const [activeCategory, setActiveCategory] = useState("All");
+  const { data: services, isLoading, isRefetching, refetch } = useMyServices();
+  const [activeStatus, setActiveStatus] = useState("All");
   const [search, setSearch] = useState("");
 
-  const filteredServices = MOCK_SERVICES.filter((service) => {
-    const matchesCategory =
-      activeCategory === "All" || service.category === activeCategory;
-    const matchesSearch = service.title
-      .toLowerCase()
-      .includes(search.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  // Filter services based on status and search
+  const filteredServices = useMemo(() => {
+    if (!services) return [];
+
+    return services.filter((service: Service) => {
+      const matchesStatus =
+        activeStatus === "All" ||
+        (activeStatus === "Published" && service.status === "published") ||
+        (activeStatus === "Draft" && service.status === "draft");
+
+      const matchesSearch = service.title
+        .toLowerCase()
+        .includes(search.toLowerCase());
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [services, activeStatus, search]);
+
+  // Calculate stats
+  const stats = useMemo(() => {
+    if (!services) return { total: 0, published: 0, draft: 0 };
+
+    return {
+      total: services.length,
+      published: services.filter((s: Service) => s.status === "published")
+        .length,
+      draft: services.filter((s: Service) => s.status === "draft").length,
+    };
+  }, [services]);
+
+  const formatPrice = (price: number | null) => {
+    if (price === null || price === undefined) return "Free";
+    return `$${price.toFixed(2)}`;
+  };
 
   return (
     <View className="flex-1 bg-white">
@@ -82,13 +66,21 @@ export default function Service() {
       {/* Header */}
       <View className="px-6 pt-16 pb-4 bg-white">
         <View className="flex-row items-center justify-between mb-6">
-          <Text className="text-2xl font-black text-black">Services</Text>
+          <View>
+            <Text className="text-2xl font-black text-black">My Courses</Text>
+            <Text className="text-gray-400 text-xs mt-1">
+              {stats.total} course{stats.total !== 1 ? "s" : ""} •{" "}
+              {stats.published} published
+            </Text>
+          </View>
           <TouchableOpacity
             onPress={() => router.push("/service-create")}
             className="bg-black px-4 py-2 rounded-full flex-row items-center"
           >
             <Ionicons name="add" size={20} color="white" />
-            <Text className="text-white font-black text-sm ml-1">Add New</Text>
+            <Text className="text-white font-black text-sm ml-1">
+              New Course
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -96,128 +88,203 @@ export default function Service() {
         <View className="bg-gray-50 flex-row items-center px-4 py-3 rounded-2xl border border-gray-100 mb-6">
           <Ionicons name="search" size={20} color="#9CA3AF" />
           <TextInput
-            placeholder="Search your services..."
+            placeholder="Search your courses..."
             placeholderTextColor="#9CA3AF"
             className="flex-1 ml-3 text-black font-medium"
             value={search}
             onChangeText={setSearch}
           />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch("")}>
+              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Category Filter */}
+        {/* Status Filter */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           className="flex-row gap-2"
         >
-          {CATEGORIES.map((cat) => (
+          {STATUS_FILTERS.map((status) => (
             <TouchableOpacity
-              key={cat}
-              onPress={() => setActiveCategory(cat)}
+              key={status}
+              onPress={() => setActiveStatus(status)}
               className={`px-6 py-2.5 rounded-full border ${
-                activeCategory === cat
+                activeStatus === status
                   ? "bg-black border-black"
                   : "bg-white border-gray-100"
               } mr-2`}
             >
               <Text
                 className={`font-black text-[10px] uppercase tracking-widest ${
-                  activeCategory === cat ? "text-white" : "text-gray-400"
+                  activeStatus === status ? "text-white" : "text-gray-400"
                 }`}
               >
-                {cat}
+                {status}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        {/* Service Grid */}
-        <View className="px-6 py-4 flex-row flex-wrap justify-between">
-          {filteredServices.map((service) => (
-            <TouchableOpacity key={service.id} className="w-[48%] mb-8">
-              {/* Image Container */}
-              <View className="w-full h-40 rounded-[2rem] overflow-hidden border border-gray-100 mb-3 bg-gray-50">
-                <Image
-                  source={{ uri: service.image }}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                />
-                <View className="absolute top-3 right-3 bg-white/90 px-2 py-1 rounded-full border border-gray-100">
-                  <Text className="text-black font-black text-[10px]">
-                    ${service.price}
-                  </Text>
-                </View>
-                {service.status === "Draft" && (
-                  <View className="absolute top-3 left-3 bg-gray-800 px-2 py-1 rounded-full">
-                    <Text className="text-white font-black text-[10px] uppercase">
-                      Draft
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+        }
+      >
+        {/* Loading State */}
+        {isLoading && (
+          <View className="flex-1 items-center justify-center py-20">
+            <ActivityIndicator size="large" color="#000" />
+            <Text className="text-gray-400 font-bold mt-4">
+              Loading courses...
+            </Text>
+          </View>
+        )}
+
+        {/* Course List */}
+        {!isLoading && (
+          <View className="px-6 py-4 flex-row flex-wrap justify-between">
+            {filteredServices.map((service: Service) => (
+              <TouchableOpacity
+                key={service.id}
+                className="w-[48%] mb-8"
+                onPress={() =>
+                  router.push({
+                    pathname: "/course-detail" as const,
+                    params: { id: service.id },
+                  } as any)
+                }
+              >
+                {/* Image Container */}
+                <View className="w-full h-40 rounded-[2rem] overflow-hidden border border-gray-100 mb-3 bg-gray-50">
+                  {service.thumbnail_url ? (
+                    <Image
+                      source={{ uri: service.thumbnail_url }}
+                      className="w-full h-full"
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View className="w-full h-full items-center justify-center bg-gray-100">
+                      <Ionicons
+                        name="school-outline"
+                        size={40}
+                        color="#D1D5DB"
+                      />
+                    </View>
+                  )}
+                  {/* Price Badge */}
+                  <View className="absolute top-3 right-3 bg-white/90 px-2 py-1 rounded-full border border-gray-100">
+                    <Text className="text-black font-black text-[10px]">
+                      {formatPrice(service.price)}
                     </Text>
                   </View>
+                  {/* Status Badge */}
+                  {service.status === "draft" && (
+                    <View className="absolute top-3 left-3 bg-gray-800 px-2 py-1 rounded-full">
+                      <Text className="text-white font-black text-[10px] uppercase">
+                        Draft
+                      </Text>
+                    </View>
+                  )}
+                  {service.status === "published" && (
+                    <View className="absolute top-3 left-3 bg-green-500 px-2 py-1 rounded-full">
+                      <Text className="text-white font-black text-[10px] uppercase">
+                        Live
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Info */}
+                <Text
+                  className="text-black font-black text-sm mb-1"
+                  numberOfLines={2}
+                >
+                  {service.title}
+                </Text>
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <Ionicons name="layers-outline" size={12} color="#9CA3AF" />
+                    <Text className="text-gray-400 text-[10px] font-bold ml-1">
+                      {service.modules_count || 0} modules
+                    </Text>
+                  </View>
+                  {service.category && (
+                    <Text className="text-gray-300 text-[10px] font-bold">
+                      {service.category}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            {/* Empty State */}
+            {filteredServices.length === 0 && !isLoading && (
+              <View className="w-full items-center justify-center py-20">
+                <View className="w-20 h-20 rounded-full bg-gray-50 items-center justify-center mb-4">
+                  <Ionicons name="school-outline" size={32} color="#D1D5DB" />
+                </View>
+                <Text className="text-gray-400 font-bold text-center">
+                  {search
+                    ? "No courses match your search"
+                    : activeStatus !== "All"
+                      ? `No ${activeStatus.toLowerCase()} courses`
+                      : "No courses yet"}
+                </Text>
+                {!search && activeStatus === "All" && (
+                  <TouchableOpacity
+                    onPress={() => router.push("/service-create")}
+                    className="mt-4 bg-black px-6 py-3 rounded-full"
+                  >
+                    <Text className="text-white font-black text-sm">
+                      Create Your First Course
+                    </Text>
+                  </TouchableOpacity>
                 )}
               </View>
+            )}
+          </View>
+        )}
 
-              {/* Info */}
-              <Text
-                className="text-black font-black text-sm mb-1"
-                numberOfLines={1}
-              >
-                {service.title}
-              </Text>
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center">
-                  <Ionicons name="star" size={12} color="#FFD700" />
-                  <Text className="text-gray-400 text-[10px] font-bold ml-1">
-                    {service.rating}
-                  </Text>
-                </View>
-                <View className="flex-row items-center">
-                  <Ionicons name="cart-outline" size={12} color="#9CA3AF" />
-                  <Text className="text-gray-400 text-[10px] font-bold ml-1">
-                    {service.sales} sales
-                  </Text>
-                </View>
+        {/* Stats Summary */}
+        {!isLoading && services && services.length > 0 && (
+          <View className="mx-6 mb-12 bg-black rounded-[2.5rem] p-6 shadow-xl shadow-black/20">
+            <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-4">
+              Course Overview
+            </Text>
+            <View className="flex-row justify-between">
+              <View>
+                <Text className="text-white text-2xl font-black">
+                  {stats.total}
+                </Text>
+                <Text className="text-gray-500 text-[10px] font-black uppercase">
+                  Total
+                </Text>
               </View>
-            </TouchableOpacity>
-          ))}
-
-          {filteredServices.length === 0 && (
-            <View className="w-full items-center justify-center py-20">
-              <View className="w-20 h-20 rounded-full bg-gray-50 items-center justify-center mb-4">
-                <Ionicons name="cube-outline" size={32} color="#D1D5DB" />
+              <View>
+                <Text className="text-white text-2xl font-black">
+                  {stats.published}
+                </Text>
+                <Text className="text-gray-500 text-[10px] font-black uppercase">
+                  Published
+                </Text>
               </View>
-              <Text className="text-gray-400 font-bold">No services found</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Global Performance Summary */}
-        <View className="mx-6 mb-12 bg-black rounded-[2.5rem] p-6 shadow-xl shadow-black/20">
-          <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-4">
-            Store Performance
-          </Text>
-          <View className="flex-row justify-between">
-            <View>
-              <Text className="text-white text-2xl font-black">$3,420</Text>
-              <Text className="text-gray-500 text-[10px] font-black uppercase">
-                Revenue
-              </Text>
-            </View>
-            <View>
-              <Text className="text-white text-2xl font-black">311</Text>
-              <Text className="text-gray-500 text-[10px] font-black uppercase">
-                Total Sales
-              </Text>
-            </View>
-            <View>
-              <Text className="text-white text-2xl font-black">4.9</Text>
-              <Text className="text-gray-500 text-[10px] font-black uppercase">
-                Avg Rating
-              </Text>
+              <View>
+                <Text className="text-white text-2xl font-black">
+                  {stats.draft}
+                </Text>
+                <Text className="text-gray-500 text-[10px] font-black uppercase">
+                  Drafts
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
       </ScrollView>
     </View>
   );

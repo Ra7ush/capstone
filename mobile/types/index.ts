@@ -9,6 +9,7 @@ export type AuthState = {
   hasProfile: boolean;
   pendingEmail: string | null;
   user: any | null;
+  aal?: "aal1" | "aal2"; // Authenticator Assurance Level
 };
 
 // ============================================
@@ -29,6 +30,7 @@ export interface User {
   avatar_url?: string | null; // Alias used in community features
   followers_count: number;
   following_count: number;
+  mfa_enabled?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -91,21 +93,110 @@ export interface VerificationSubmission {
 }
 
 // ============================================
-// Product Types (for future use)
+// Service/Course Types
 // ============================================
 
-export interface Product {
+export type ServiceType = "course"; // Fixed to course only for now
+export type ServiceStatus = "draft" | "published";
+
+export interface Service {
   id: string;
   creator_id: string;
-  name: string;
-  description: string;
-  price: number;
-  images: string[];
-  category: string;
-  stock: number;
-  status: "draft" | "active" | "archived";
+  title: string;
+  description: string | null;
+  category: string | null;
+  type: ServiceType;
+  price: number | null;
+  thumbnail_url: string | null;
+  status: ServiceStatus;
   created_at: string;
-  updated_at: string;
+  modules_count?: number;
+  creator?: {
+    id: string;
+    username: string;
+    avatar_url?: string;
+  };
+  modules?: CourseModule[];
+  resources?: CourseResource[];
+}
+
+export interface CourseModule {
+  id: string;
+  service_id: string;
+  title: string;
+  order_index: number;
+  created_at: string;
+  lessons?: Lesson[];
+}
+
+export interface Lesson {
+  id: string;
+  module_id: string;
+  title: string;
+  description: string | null;
+  video_url: string | null;
+  video_duration: number | null;
+  order_index: number;
+  is_preview: boolean;
+  created_at: string;
+}
+
+export interface CourseResource {
+  id: string;
+  service_id: string;
+  lesson_id: string | null;
+  title: string;
+  file_url: string | null;
+  file_type: string | null;
+  file_size: number | null;
+  created_at: string;
+}
+
+export interface Purchase {
+  id: string;
+  user_id: string;
+  service_id: string;
+  amount: number | null;
+  status: string;
+  purchased_at: string;
+}
+
+export interface CourseProgress {
+  id: string;
+  user_id: string;
+  lesson_id: string;
+  completed: boolean;
+  last_watched_position: number | null;
+  completed_at: string | null;
+}
+
+// Create/Update DTOs
+export interface CreateServiceData {
+  title: string;
+  description?: string;
+  category?: string;
+  price?: number;
+  thumbnail_url?: string;
+}
+
+export interface CreateModuleData {
+  title: string;
+}
+
+export interface CreateLessonData {
+  title: string;
+  description?: string;
+  video_url?: string;
+  video_duration?: number;
+  is_preview?: boolean;
+}
+
+export interface CreateResourceData {
+  title: string;
+  file_url: string;
+  file_type?: string;
+  file_size?: number;
+  lesson_id?: string;
 }
 
 // ============================================
@@ -132,7 +223,7 @@ export interface Order {
 
 export interface OrderItem {
   product_id: string;
-  product: Product;
+  product: Service; // Changed from Product to Service
   quantity: number;
   price: number;
 }

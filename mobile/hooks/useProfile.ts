@@ -1,13 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { profileApi } from "../lib/api";
+import { profileApi, creatorApi } from "../lib/api";
 import { useAuthState } from "./useAuthState";
 import { User } from "../types";
+
+// ... (UserProfile definition)
 
 // Extends User to include optional joined fields if necessary
 export type UserProfile = User & {
   bio?: string;
   verification_status?: string;
   avatar_url?: string | null;
+  social_links?: {
+    github?: string;
+    linkedin?: string;
+    instagram?: string;
+    [key: string]: string | undefined;
+  };
+  portfolio_url?: string;
+  is_public?: boolean;
 };
 
 export function useUser() {
@@ -51,6 +61,27 @@ export function useCreatorProfile(creatorId: string) {
   });
 }
 
+export function useUpdateCreatorProfile() {
+  const queryClient = useQueryClient();
+  const { session } = useAuthState();
+  const userId = session?.user?.id;
+
+  return useMutation({
+    mutationFn: async (updates: {
+      bio?: string;
+      social_links?: any;
+      portfolio_url?: string;
+    }) => {
+      if (!userId) throw new Error("No user");
+      return creatorApi.updateProfile(userId, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users", userId] });
+      queryClient.invalidateQueries({ queryKey: ["creators", userId] });
+    },
+  });
+}
+
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
   const { session, refresh } = useAuthState();
@@ -61,16 +92,25 @@ export function useUpdateProfile() {
       full_name?: string;
       username?: string;
       bio?: string;
+      social_links?: any;
+      portfolio_url?: string;
+      is_public?: boolean;
     }) => {
       if (!userId) throw new Error("No user");
 
-      // Filter updates to only allow full_name, username, and bio
+      // Filter updates to only allow specified fields
       const filteredUpdates: Record<string, any> = {};
       if (updates.full_name !== undefined)
         filteredUpdates.full_name = updates.full_name;
       if (updates.username !== undefined)
         filteredUpdates.username = updates.username;
       if (updates.bio !== undefined) filteredUpdates.bio = updates.bio;
+      if (updates.social_links !== undefined)
+        filteredUpdates.social_links = updates.social_links;
+      if (updates.portfolio_url !== undefined)
+        filteredUpdates.portfolio_url = updates.portfolio_url;
+      if (updates.is_public !== undefined)
+        filteredUpdates.is_public = updates.is_public;
 
       if (Object.keys(filteredUpdates).length === 0) {
         throw new Error("No valid fields to update");
@@ -168,8 +208,8 @@ export function useMarkNotificationRead() {
       if (previousNotifications) {
         queryClient.setQueryData(["notifications", userId], (old: any[]) =>
           old?.map((n) =>
-            n.id === notificationId ? { ...n, is_read: true } : n
-          )
+            n.id === notificationId ? { ...n, is_read: true } : n,
+          ),
         );
       }
 
@@ -179,7 +219,7 @@ export function useMarkNotificationRead() {
       if (context?.previousNotifications) {
         queryClient.setQueryData(
           ["notifications", userId],
-          context.previousNotifications
+          context.previousNotifications,
         );
       }
     },

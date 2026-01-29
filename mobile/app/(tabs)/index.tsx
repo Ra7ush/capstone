@@ -11,10 +11,10 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { supabase } from "@/lib/supabase";
-import { useState } from "react";
+import { useCreatorStats } from "@/hooks/useCreator";
 import { useAuthState } from "@/hooks/useAuthState";
 import { useUser } from "@/hooks/useProfile";
-import { useCreatorStats } from "@/hooks/useCreator";
+import { useState, useEffect } from "react";
 
 export default function Home() {
   const router = useRouter();

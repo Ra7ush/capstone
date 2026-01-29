@@ -23,9 +23,22 @@ export default function ProfileEdit() {
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [username, setUsername] = useState(profile?.username || "");
   const [bio, setBio] = useState(profile?.bio || "");
+  const [portfolioUrl, setPortfolioUrl] = useState(
+    profile?.portfolio_url || "",
+  );
+  const [github, setGithub] = useState(profile?.social_links?.github || "");
+  const [instagram, setInstagram] = useState(
+    profile?.social_links?.instagram || "",
+  );
+  const [linkedin, setLinkedin] = useState(
+    profile?.social_links?.linkedin || "",
+  );
+
   const { mutateAsync: updateProfile, isPending: loading } = useUpdateProfile();
 
   const isBioOnly = mode === "bio";
+  const isBasicOnly = mode === "basic";
+  const isFull = mode === "full" || (!isBioOnly && !isBasicOnly);
 
   const handleSave = async () => {
     if (!user?.id) return;
@@ -34,6 +47,15 @@ export default function ProfileEdit() {
         full_name: isBioOnly ? undefined : fullName,
         username: isBioOnly ? undefined : username,
         bio: bio,
+        portfolio_url: profile?.role === "creator" ? portfolioUrl : undefined,
+        social_links:
+          profile?.role === "creator"
+            ? {
+                github,
+                instagram,
+                linkedin,
+              }
+            : undefined,
       });
       router.back();
     } catch (error) {
@@ -47,7 +69,11 @@ export default function ProfileEdit() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: isBioOnly ? "Edit Biography" : "Personal Information",
+          title: isBioOnly
+            ? "Edit Biography"
+            : isBasicOnly
+              ? "Edit Username"
+              : "Personal Information",
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} className="ml-2">
               <Ionicons name="chevron-back" size={24} color="black" />
@@ -80,7 +106,11 @@ export default function ProfileEdit() {
         <View className="px-6 py-8">
           <View className="mb-8">
             <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 px-1">
-              {isBioOnly ? "Your Story" : "Basic Protocol"}
+              {isBioOnly
+                ? "Your Story"
+                : isBasicOnly
+                  ? "Protocol Identity"
+                  : "Full Protocol Profile"}
             </Text>
 
             <View className="bg-gray-50 rounded-[2.5rem] p-4 border border-gray-100">
@@ -115,20 +145,82 @@ export default function ProfileEdit() {
                 </>
               )}
 
-              <View>
-                <Text className="text-gray-500 text-[10px] font-black uppercase mb-2 ml-4">
-                  Biography
-                </Text>
-                <TextInput
-                  value={bio}
-                  onChangeText={setBio}
-                  className="bg-white rounded-[2rem] p-6 font-bold text-black border border-gray-100 min-h-[160px]"
-                  placeholder="Tell the community about yourself..."
-                  placeholderTextColor="#d3d7ddff"
-                  multiline
-                  textAlignVertical="top"
-                />
-              </View>
+              {isFull || isBioOnly ? (
+                <View className="mb-6">
+                  <Text className="text-gray-500 text-[10px] font-black uppercase mb-2 ml-4">
+                    Biography
+                  </Text>
+                  <TextInput
+                    value={bio}
+                    onChangeText={setBio}
+                    className="bg-white rounded-[2rem] p-6 font-bold text-black border border-gray-100 min-h-[160px]"
+                    placeholder="Tell the community about yourself..."
+                    placeholderTextColor="#d3d7ddff"
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </View>
+              ) : null}
+
+              {isFull && profile?.role === "creator" && (
+                <>
+                  <View className="mb-6">
+                    <Text className="text-gray-500 text-[10px] font-black uppercase mb-2 ml-4">
+                      Portfolio URL
+                    </Text>
+                    <TextInput
+                      value={portfolioUrl}
+                      onChangeText={setPortfolioUrl}
+                      className="bg-white rounded-[2rem] p-4 font-bold text-black border border-gray-100"
+                      placeholder="e.g. https://yourportfolio.com"
+                      placeholderTextColor="#d3d7ddff"
+                      autoCapitalize="none"
+                    />
+                  </View>
+
+                  <View className="mb-6">
+                    <Text className="text-gray-500 text-[10px] font-black uppercase mb-2 ml-4">
+                      GitHub
+                    </Text>
+                    <TextInput
+                      value={github}
+                      onChangeText={setGithub}
+                      className="bg-white rounded-[2rem] p-4 font-bold text-black border border-gray-100"
+                      placeholder="Your GitHub username"
+                      placeholderTextColor="#d3d7ddff"
+                      autoCapitalize="none"
+                    />
+                  </View>
+
+                  <View className="mb-6">
+                    <Text className="text-gray-500 text-[10px] font-black uppercase mb-2 ml-4">
+                      Instagram
+                    </Text>
+                    <TextInput
+                      value={instagram}
+                      onChangeText={setInstagram}
+                      className="bg-white rounded-[2rem] p-4 font-bold text-black border border-gray-100"
+                      placeholder="Your Instagram handle"
+                      placeholderTextColor="#d3d7ddff"
+                      autoCapitalize="none"
+                    />
+                  </View>
+
+                  <View>
+                    <Text className="text-gray-500 text-[10px] font-black uppercase mb-2 ml-4">
+                      LinkedIn
+                    </Text>
+                    <TextInput
+                      value={linkedin}
+                      onChangeText={setLinkedin}
+                      className="bg-white rounded-[2rem] p-4 font-bold text-black border border-gray-100"
+                      placeholder="Your LinkedIn profile link"
+                      placeholderTextColor="#d3d7ddff"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                </>
+              )}
             </View>
           </View>
 
