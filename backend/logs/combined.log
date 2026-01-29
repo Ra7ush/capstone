@@ -1478,3 +1478,8 @@
 {"level":"debug","message":"[getProfile] id=45554222-652f-4eb5-b4e6-9ebc83a5371a cacheKey=profile:45554222-652f-4eb5-b4e6-9ebc83a5371a","service":"backend","timestamp":"2026-01-29 02:58:30"}
 {"level":"debug","message":"[getProfile] Returning profile for id=45554222-652f-4eb5-b4e6-9ebc83a5371a","service":"backend","timestamp":"2026-01-29 02:58:30"}
 {"level":"info","message":"GET /api/service/mine","service":"backend","timestamp":"2026-01-29 02:58:56"}
+{"level":"info","message":"GET /api/profile/user/45554222-652f-4eb5-b4e6-9ebc83a5371a","service":"backend","timestamp":"2026-01-29 03:00:29"}
+{"level":"debug","message":"[getProfile] id=45554222-652f-4eb5-b4e6-9ebc83a5371a cacheKey=profile:45554222-652f-4eb5-b4e6-9ebc83a5371a","service":"backend","timestamp":"2026-01-29 03:00:29"}
+{"level":"debug","message":"[getProfile] Returning profile for id=45554222-652f-4eb5-b4e6-9ebc83a5371a","service":"backend","timestamp":"2026-01-29 03:00:29"}
+{"level":"info","message":"SIGINT received. Shutting down gracefully...","service":"backend","timestamp":"2026-01-29 03:01:32"}
+{"level":"info","message":"HTTP server closed.","service":"backend","timestamp":"2026-01-29 03:01:32"}
