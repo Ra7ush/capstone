@@ -80,7 +80,7 @@ const AnimatedHeart = memo(
         </Animated.View>
       </Pressable>
     );
-  }
+  },
 );
 
 AnimatedHeart.displayName = "AnimatedHeart";
@@ -152,7 +152,7 @@ export const PostCard = memo(
           }, DOUBLE_TAP_DELAY);
         }
       },
-      [post, isLikeLoading, onLike, doubleTapAnim, onViewImages]
+      [post, isLikeLoading, onLike, doubleTapAnim, onViewImages],
     );
 
     return (
@@ -321,7 +321,7 @@ export const PostCard = memo(
         </View>
       </View>
     );
-  }
+  },
 );
 
 PostCard.displayName = "PostCard";

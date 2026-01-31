@@ -95,6 +95,8 @@ export function useUpdateProfile() {
       social_links?: any;
       portfolio_url?: string;
       is_public?: boolean;
+      profile_image_url?: string;
+      cover_image_url?: string;
     }) => {
       if (!userId) throw new Error("No user");
 
@@ -111,6 +113,10 @@ export function useUpdateProfile() {
         filteredUpdates.portfolio_url = updates.portfolio_url;
       if (updates.is_public !== undefined)
         filteredUpdates.is_public = updates.is_public;
+      if (updates.profile_image_url !== undefined)
+        filteredUpdates.profile_image_url = updates.profile_image_url;
+      if (updates.cover_image_url !== undefined)
+        filteredUpdates.cover_image_url = updates.cover_image_url;
 
       if (Object.keys(filteredUpdates).length === 0) {
         throw new Error("No valid fields to update");

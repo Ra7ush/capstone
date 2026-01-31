@@ -57,7 +57,7 @@ const mmkvPersister = createAsyncStoragePersister({
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
-  const { isLoading, session, isEmailVerified, hasProfile, aal } =
+  const { isLoading, session, isEmailVerified, hasProfile, aal, user } =
     useAuthState();
 
   useEffect(() => {
@@ -71,12 +71,18 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     const currentRoute = segments.join("/");
     const inAuthGroup = segments[0] === "(auth)";
     const inOnboarding = segments[0] === "onboarding";
-    const inTabsGroup = segments[0] === "(tabs)";
+    const inCreatorGroup = segments[0] === "(creator)";
+    const inUserGroup = segments[0] === "(user)";
+    const inAppGroup = inCreatorGroup || inUserGroup;
+
+    // Get user role from profile
+    const userRole = user?.profile?.role || "user";
 
     console.log("Auth Guard Check:", {
       hasSession: !!session,
       isEmailVerified,
       hasProfile,
+      userRole,
       currentRoute,
     });
 
@@ -99,18 +105,22 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       if (currentRoute !== "mfa-verify") {
         router.replace("/mfa-verify");
       }
-    } else if (!hasProfile && !inTabsGroup) {
+    } else if (!hasProfile && !inAppGroup) {
       // Verified but no profile → should be on onboarding
       if (!inOnboarding && currentRoute !== "mfa-verify") {
         router.replace("/onboarding");
       }
     } else if (hasProfile) {
-      // Fully authenticated → should be in tabs group
+      // Fully authenticated → route based on role
       if (inAuthGroup || inOnboarding || currentRoute === "mfa-verify") {
-        router.replace("/(tabs)");
+        if (userRole === "creator") {
+          router.replace("/(creator)");
+        } else {
+          router.replace("/(user)");
+        }
       }
     }
-  }, [isLoading, session, isEmailVerified, hasProfile, aal]);
+  }, [isLoading, session, isEmailVerified, hasProfile, aal, user]);
 
   if (isLoading) {
     return <LoadingScreen />;

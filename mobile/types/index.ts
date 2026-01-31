@@ -31,6 +31,11 @@ export interface User {
   followers_count: number;
   following_count: number;
   mfa_enabled?: boolean;
+  // Flattened profile fields
+  cover_image_url?: string | null;
+  bio?: string | null;
+  category?: string | null;
+  verification_status?: VerificationStatus;
   created_at: string;
   updated_at: string;
 }

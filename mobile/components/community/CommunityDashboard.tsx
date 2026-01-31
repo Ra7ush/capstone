@@ -12,6 +12,7 @@ import {
   FlatList,
   Platform,
   ActionSheetIOS,
+  Modal,
 } from "react-native";
 import { Stack, useRouter, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -25,6 +26,7 @@ import {
   Community as CommunityType,
   Post,
 } from "../../hooks/useCommunity";
+import { profileApi } from "../../lib/api";
 import { useFollow } from "../../hooks/useFollow";
 import { ImageViewer } from "../../components";
 import { PostCard } from "./PostCard";
@@ -400,6 +402,13 @@ export const CommunityDashboard = ({
           activeTab === "Profile" ? (
             <ProfileTab
               user={user}
+              uploadImage={uploadImage}
+              likePost={likePost}
+              unlikePost={unlikePost}
+              deletePost={deletePost}
+              onOpenComments={handleOpenComments}
+              onViewImages={handleViewImages}
+              refreshAuth={refreshAuth}
               onEdit={() => {
                 router.push({
                   pathname: "/profile-edit",
@@ -571,7 +580,32 @@ const DashboardHeader = React.memo(
   ),
 );
 
-const ProfileTab = ({ user, onEdit }: any) => {
+const ProfileTab = ({
+  user,
+  onEdit,
+  uploadImage,
+  likePost,
+  unlikePost,
+  deletePost,
+  onOpenComments,
+  onViewImages,
+  refreshAuth,
+}: any) => {
+  const [coverImage, setCoverImage] = useState<string | null>(
+    user.profile?.cover_image_url || null,
+  );
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [postsStats, setPostsStats] = useState({ total: 0, totalLikes: 0 });
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
+  const [selectedPostIndex, setSelectedPostIndex] = useState<number | null>(
+    null,
+  );
+  const [loadingLikeId, setLoadingLikeId] = useState<string | null>(null);
+  const [isUploadingProfile, setIsUploadingProfile] = useState(false);
+
+  const router = useRouter();
+
   const initials = user.profile?.full_name
     ? user.profile.full_name
         .split(" ")
@@ -581,80 +615,396 @@ const ProfileTab = ({ user, onEdit }: any) => {
     : user.profile?.username?.charAt(0).toUpperCase() || "U";
 
   const isVerified = user.verification_status === "verified";
+  const category = user.profile?.category || "Creator";
+
+  // Fetch user posts
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        const userId = user?.id || user?.profile?.id;
+        if (!userId) return;
+
+        const result = await profileApi.getUserPosts(userId, { limit: 30 });
+        const enrichedPosts = (result.posts || []).map((post: any) => ({
+          ...post,
+          user_id: userId,
+          user: {
+            id: userId,
+            username: user.profile?.username || user.username,
+            full_name: user.profile?.full_name || user.full_name,
+            profile_image_url:
+              user.profile?.profile_image_url || user.profile_image_url,
+            verification_status: user.verification_status,
+          },
+        }));
+        setPosts(enrichedPosts);
+        setPostsStats({
+          total: result.total || 0,
+          totalLikes: result.totalLikes || 0,
+        });
+      } catch (error) {
+        console.error("Error fetching user posts:", error);
+      } finally {
+        setIsLoadingPosts(false);
+      }
+    };
+    fetchPosts();
+  }, [user?.id, user?.profile?.id]);
+
+  const handlePickCoverImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setIsUploadingCover(true);
+        const uploadedUrl = await uploadImage(result.assets[0].uri);
+
+        // Update profile with new cover image
+        const userId = user?.id || user?.profile?.id;
+        await profileApi.updateProfile(userId, {
+          cover_image_url: uploadedUrl,
+        });
+        setCoverImage(uploadedUrl);
+        Alert.alert("Success", "Cover photo updated!");
+      }
+    } catch (error) {
+      console.error("Error uploading cover:", error);
+      Alert.alert("Error", "Failed to update cover photo");
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
+
+  const handlePickProfileImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setIsUploadingProfile(true);
+        const uploadedUrl = await uploadImage(result.assets[0].uri);
+
+        // Update profile with new profile image
+        const userId = user?.id || user?.profile?.id;
+        await profileApi.updateProfile(userId, {
+          profile_image_url: uploadedUrl,
+        });
+
+        if (refreshAuth) {
+          refreshAuth();
+        }
+
+        Alert.alert("Success", "Profile photo updated!");
+      }
+    } catch (error) {
+      console.error("Error uploading profile photo:", error);
+      Alert.alert("Error", "Failed to update profile photo");
+    } finally {
+      setIsUploadingProfile(false);
+    }
+  };
+
+  const handleLocalLike = async (post: Post) => {
+    if (loadingLikeId) return;
+    setLoadingLikeId(post.id);
+
+    try {
+      if (post.has_liked) {
+        await unlikePost(post.id);
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === post.id
+              ? { ...p, has_liked: false, likes_count: p.likes_count - 1 }
+              : p,
+          ),
+        );
+      } else {
+        await likePost(post.id);
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === post.id
+              ? { ...p, has_liked: true, likes_count: p.likes_count + 1 }
+              : p,
+          ),
+        );
+      }
+    } catch (error) {
+      console.error("Like error:", error);
+    } finally {
+      setLoadingLikeId(null);
+    }
+  };
+
+  const handleLocalDelete = (postId: string) => {
+    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deletePost(postId);
+            setPosts((prev) => prev.filter((p) => p.id !== postId));
+            // Close modal if deleted post was selected
+            setSelectedPostIndex((currentIndex) => {
+              if (currentIndex === null) return null;
+              // Use setPosts callback to access current posts
+              return null; // Simplify: close modal on any delete from profile
+            });
+          } catch (error) {
+            console.error("Delete error:", error);
+            Alert.alert("Error", "Failed to delete post");
+          }
+        },
+      },
+    ]);
+  };
 
   return (
-    <View className="px-6 pb-20 pt-4">
-      {/* Header & Avatar Section */}
-      <View className="items-center mb-10">
-        <View className="relative">
-          <View className="w-32 h-32 rounded-[3rem] bg-black items-center justify-center border-4 border-gray-50 shadow-2xl">
-            <Text className="text-white text-4xl font-black">{initials}</Text>
+    <View className="pb-20">
+      {/* Full Screen Post Feed Modal */}
+      <Modal
+        visible={selectedPostIndex !== null}
+        animationType="slide"
+        onRequestClose={() => setSelectedPostIndex(null)}
+      >
+        <View className="flex-1 bg-white">
+          <View className="pt-12 px-4 pb-4 border-b border-gray-100 flex-row items-center justify-between bg-white z-10">
+            <TouchableOpacity onPress={() => setSelectedPostIndex(null)}>
+              <Ionicons name="chevron-back" size={28} color="black" />
+            </TouchableOpacity>
+            <Text className="font-bold text-lg">Posts</Text>
+            <View className="w-7" />
           </View>
-          <TouchableOpacity
-            onPress={onEdit}
-            className="absolute -bottom-2 -right-2 w-12 h-12 rounded-full bg-white items-center justify-center shadow-lg border border-gray-100"
-          >
-            <Ionicons name="settings-outline" size={24} color="black" />
-          </TouchableOpacity>
-        </View>
 
-        <View className="items-center mt-6">
-          <View className="flex-row items-center gap-2 mb-1">
-            <Text className="text-3xl font-black text-black text-center">
-              {user.profile?.full_name || "Guest User"}
-            </Text>
-            {isVerified && (
-              <Ionicons name="checkmark-circle" size={20} color="#0095F6" />
+          <FlatList
+            data={posts}
+            keyExtractor={(item) => item.id}
+            initialScrollIndex={selectedPostIndex || 0}
+            getItemLayout={(data, index) => ({
+              length: 500, // Approximate height
+              offset: 500 * index,
+              index,
+            })}
+            onScrollToIndexFailed={(info) => {
+              const wait = new Promise((resolve) => setTimeout(resolve, 500));
+              wait.then(() => {
+                // If scroll fails, valid fallback
+              });
+            }}
+            renderItem={({ item }) => (
+              <View className="px-6 mb-6">
+                <PostCard
+                  post={item}
+                  currentUserId={user?.id || user?.profile?.id}
+                  onLike={handleLocalLike}
+                  onDelete={handleLocalDelete}
+                  onFollow={() => {}} // No follow needed on own profile
+                  onOpenComments={onOpenComments}
+                  onViewImages={onViewImages}
+                  isLikeLoading={loadingLikeId === item.id}
+                />
+              </View>
+            )}
+            contentContainerStyle={{ paddingBottom: 40, paddingTop: 20 }}
+          />
+        </View>
+      </Modal>
+
+      {/* Cover Photo Section */}
+      <TouchableOpacity
+        onPress={handlePickCoverImage}
+        disabled={isUploadingCover}
+        activeOpacity={0.8}
+      >
+        <View className="h-44 bg-gradient-to-b from-green-200 to-green-100 relative">
+          {coverImage ? (
+            <Image
+              source={{ uri: coverImage }}
+              className="w-full h-full"
+              resizeMode="cover"
+            />
+          ) : (
+            <View className="w-full h-full bg-gradient-to-br from-emerald-200 via-green-200 to-teal-100" />
+          )}
+
+          {/* Back button */}
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="absolute top-12 left-4 w-10 h-10 rounded-full bg-black/30 items-center justify-center"
+          >
+            <Ionicons name="chevron-back" size={24} color="white" />
+          </TouchableOpacity>
+
+          {/* Camera overlay for editing */}
+          <View className="absolute inset-0 items-center justify-center">
+            {isUploadingCover ? (
+              <ActivityIndicator size="large" color="white" />
+            ) : (
+              <View className="bg-black/20 px-4 py-2 rounded-full flex-row items-center">
+                <Ionicons name="camera-outline" size={18} color="white" />
+                <Text className="text-white font-medium ml-2 text-xs">
+                  Tap to change cover
+                </Text>
+              </View>
             )}
           </View>
-          <View className="flex-row items-center gap-2">
-            <Text className="text-gray-400 font-bold text-sm">
+        </View>
+      </TouchableOpacity>
+
+      {/* Profile Info Section */}
+      <View className="px-5 -mt-10">
+        {/* Profile Image + Name Row */}
+        <View className="flex-row items-end mb-4">
+          {/* Profile Picture */}
+          <View className="relative">
+            <TouchableOpacity
+              onPress={handlePickProfileImage}
+              disabled={isUploadingProfile}
+              activeOpacity={0.8}
+              className="w-20 h-20 rounded-full bg-white border-4 border-white shadow-lg overflow-hidden items-center justify-center relative"
+            >
+              {user.profile?.profile_image_url ? (
+                <Image
+                  source={{ uri: user.profile.profile_image_url }}
+                  className="w-full h-full"
+                />
+              ) : (
+                <View className="w-full h-full bg-black items-center justify-center">
+                  <Text className="text-white text-2xl font-black">
+                    {initials}
+                  </Text>
+                </View>
+              )}
+
+              {isUploadingProfile && (
+                <View className="absolute inset-0 bg-black/50 items-center justify-center">
+                  <ActivityIndicator color="white" size="small" />
+                </View>
+              )}
+
+              <View className="absolute bottom-0 w-full h-5 bg-black/40 items-center justify-center">
+                <Ionicons name="camera" size={10} color="white" />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Name + Username */}
+          <View className="ml-4 flex-1 translate-y-1">
+            <View className="flex-row items-center">
+              <Text className="text-xl font-black text-black">
+                {user.profile?.full_name || "Guest User"}
+              </Text>
+              {isVerified && (
+                <View className="ml-1.5 w-5 h-5 rounded-full bg-green-500 items-center justify-center">
+                  <Ionicons name="checkmark" size={12} color="white" />
+                </View>
+              )}
+            </View>
+            <Text className="text-gray-400 text-sm">
               @{user.profile?.username || "username"}
-            </Text>
-            <View className="w-1 h-1 rounded-full bg-gray-300" />
-            <Text className="text-gray-900 font-black text-[10px] uppercase tracking-tighter bg-gray-100 px-2 py-0.5 rounded-full">
-              {user.profile?.role || "Member"}
             </Text>
           </View>
         </View>
-      </View>
 
-      {/* Stats Row */}
-      <View className="flex-row bg-white border border-gray-100 rounded-[2.5rem] py-8 mb-10 shadow-sm">
-        <View className="flex-1 items-center border-r border-gray-50">
-          <Text className="text-2xl font-black text-black">
-            {user.profile?.followers_count || 0}
-          </Text>
-          <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest mt-1">
-            Followers
-          </Text>
-        </View>
-        <View className="flex-1 items-center">
-          <Text className="text-2xl font-black text-black">
-            {user.profile?.following_count || 0}
-          </Text>
-          <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest mt-1">
-            Following
-          </Text>
-        </View>
-      </View>
+        {/* Profile Image (Moved out of flow for better positioning control or keep as is?
+            Original was flex-row items-end.
+            I need to modify the PREVIOUS block actually, lines 830-845)
+            Wait, I should target lines 830-845 specifically.
+        */}
 
-      {/* Biography Card */}
-      <View className="bg-gray-50 rounded-[2.5rem] p-8 border border-gray-100/50">
-        <View className="flex-row items-center gap-2 mb-4">
-          <Ionicons
-            name="information-circle-outline"
-            size={18}
-            color="#9CA3AF"
-          />
-          <Text className="text-gray-400 font-black text-[10px] uppercase tracking-[0.2em]">
-            Biography
-          </Text>
+        {/* Stats Row */}
+        <View className="flex-row border border-gray-100 rounded-2xl py-4 px-2 mb-5 bg-white">
+          <View className="flex-1 items-center border-r border-gray-100">
+            <Text className="text-lg font-black text-black">
+              {user.profile?.followers_count || 0}
+            </Text>
+            <Text className="text-gray-400 text-xs font-medium">Followers</Text>
+          </View>
+          <View className="flex-1 items-center border-r border-gray-100">
+            <Text className="text-lg font-black text-black">
+              {user.profile?.following_count || 0}
+            </Text>
+            <Text className="text-gray-400 text-xs font-medium">Following</Text>
+          </View>
+          <View className="flex-1 items-center">
+            <Text className="text-lg font-black text-black">
+              {postsStats.total}
+            </Text>
+            <Text className="text-gray-400 text-xs font-medium">Posts</Text>
+          </View>
         </View>
-        <Text className="text-black font-medium leading-7 text-[16px]">
+
+        {/* Bio */}
+        <Text className="text-gray-600 text-sm leading-5 mb-5">
           {user.profile?.bio ||
-            "No bio available yet. Share your story with the community by updating your profile settings!"}
+            "I make videos about life in different countries. Subscribe so as not to miss a single video!"}
         </Text>
+
+        {/* Edit Profile Button */}
+        <TouchableOpacity
+          onPress={onEdit}
+          className="bg-black py-3.5 rounded-full items-center mb-6"
+        >
+          <Text className="text-white font-bold">Edit Profile</Text>
+        </TouchableOpacity>
+
+        {/* Posts Grid */}
+        <View className="mb-4">
+          <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">
+            Your Posts
+          </Text>
+
+          {isLoadingPosts ? (
+            <ActivityIndicator size="small" color="#000" className="py-8" />
+          ) : posts.length > 0 ? (
+            <View className="flex-row flex-wrap -mx-0.5">
+              {posts.map((post, index) => (
+                <TouchableOpacity
+                  key={post.id}
+                  className="w-[33.33%] aspect-square p-0.5"
+                  onPress={() => setSelectedPostIndex(index)}
+                >
+                  {post.images?.[0] ? (
+                    <Image
+                      source={{ uri: post.images[0] }}
+                      className="w-full h-full rounded-lg"
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View className="w-full h-full bg-gray-100 rounded-lg items-center justify-center p-2">
+                      <Text
+                        className="text-gray-400 text-[10px] text-center"
+                        numberOfLines={3}
+                      >
+                        {post.content?.substring(0, 50) || "Post"}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View className="items-center py-8">
+              <Ionicons name="images-outline" size={40} color="#D1D5DB" />
+              <Text className="text-gray-400 font-medium mt-3">
+                No posts yet
+              </Text>
+              <Text className="text-gray-300 text-sm">
+                Share your first post!
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
     </View>
   );

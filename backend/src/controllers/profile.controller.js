@@ -42,6 +42,7 @@ export async function getProfile(req, res, next) {
     if (data.creators) {
       data.bio = data.creators.bio;
       data.verification_status = data.creators.verification_status;
+      data.category = data.creators.category;
     }
 
     logger.debug(`[getProfile] Returning profile for id=${id}`);
@@ -54,7 +55,14 @@ export async function getProfile(req, res, next) {
 export async function updateProfile(req, res, next) {
   try {
     const { id } = req.params;
-    const { full_name, username, bio } = req.body;
+    const {
+      full_name,
+      username,
+      bio,
+      cover_image_url,
+      profile_image_url,
+      category,
+    } = req.body;
     const authenticatedUserId = req.user?.id;
 
     logger.info("PUT /api/profile", {
@@ -62,6 +70,9 @@ export async function updateProfile(req, res, next) {
       full_name,
       username,
       bio,
+      cover_image_url: cover_image_url ? "[URL]" : undefined,
+      profile_image_url: profile_image_url ? "[URL]" : undefined,
+      category,
       authenticatedUserId,
     });
 
@@ -73,10 +84,72 @@ export async function updateProfile(req, res, next) {
         .json({ success: false, error: "Unauthorized update" });
     }
 
+    // Fetch current user data to check for old images to delete
+    const { data: currentUser, error: fetchError } = await supabase
+      .from("users")
+      .select("cover_image_url, profile_image_url")
+      .eq("id", id)
+      .single();
+
+    if (fetchError) {
+      logger.error(
+        "Error fetching current user for image cleanup:",
+        fetchError,
+      );
+      // Proceeding without cleanup to avoid blocking the update
+    } else {
+      // Helper to extract path from URL and delete from storage
+      const deleteOldImage = async (url) => {
+        try {
+          if (!url) return;
+          // URL format: .../storage/v1/object/public/community/profiles/filename.jpg
+          // We need just "profiles/filename.jpg" (assuming bucket is "community")
+          const urlParts = url.split("/community/");
+          if (urlParts.length === 2) {
+            const path = urlParts[1];
+            logger.debug(`[updateProfile] Deleting old image: ${path}`);
+            const { error: removeError } = await supabase.storage
+              .from("community")
+              .remove([path]);
+            if (removeError) {
+              logger.error(
+                `[updateProfile] Failed to delete old image ${path}:`,
+                removeError,
+              );
+            }
+          }
+        } catch (err) {
+          logger.error("[updateProfile] Image cleanup error:", err);
+        }
+      };
+
+      // Check and delete old cover image
+      if (
+        cover_image_url &&
+        currentUser.cover_image_url &&
+        cover_image_url !== currentUser.cover_image_url
+      ) {
+        await deleteOldImage(currentUser.cover_image_url);
+      }
+
+      // Check and delete old profile image
+      if (
+        profile_image_url &&
+        currentUser.profile_image_url &&
+        profile_image_url !== currentUser.profile_image_url
+      ) {
+        await deleteOldImage(currentUser.profile_image_url);
+      }
+    }
+
     // 1. Update core user table
     const userUpdates = {};
     if (full_name !== undefined) userUpdates.full_name = full_name;
     if (username !== undefined) userUpdates.username = username;
+    if (cover_image_url !== undefined)
+      userUpdates.cover_image_url = cover_image_url;
+    if (profile_image_url !== undefined)
+      userUpdates.profile_image_url = profile_image_url;
     if (req.body.is_public !== undefined)
       userUpdates.is_public = req.body.is_public;
 
@@ -92,15 +165,19 @@ export async function updateProfile(req, res, next) {
       }
     }
 
-    // 2. Update creator bio if it exists
-    if (bio !== undefined) {
+    // 2. Update creator fields if any creator-specific data provided
+    const creatorUpdates = {};
+    if (bio !== undefined) creatorUpdates.bio = bio;
+    if (category !== undefined) creatorUpdates.category = category;
+
+    if (Object.keys(creatorUpdates).length > 0) {
       const { error: creatorError } = await supabase
         .from("creators")
-        .update({ bio })
+        .update(creatorUpdates)
         .eq("user_id", id);
 
       if (creatorError) {
-        logger.error("Supabase error updating creator bio:", creatorError);
+        logger.error("Supabase error updating creator:", creatorError);
         throw creatorError;
       }
     }
@@ -208,6 +285,89 @@ export async function searchProfiles(req, res, next) {
     }
 
     return res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getUserPosts(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    logger.debug(`[getUserPosts] Fetching posts for user ${id}, page ${page}`);
+
+    // Get posts by this user with pagination
+    const {
+      data: posts,
+      error,
+      count,
+    } = await supabase
+      .from("posts")
+      .select(
+        `
+        id,
+        user_id,
+        content,
+        images,
+        created_at,
+        likes_count,
+        comments_count
+      `,
+        { count: "exact" },
+      )
+      .eq("user_id", id)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + parseInt(limit) - 1);
+
+    if (error) {
+      logger.error("[getUserPosts] Supabase error:", error);
+      throw error;
+    }
+
+    // Check if the current user has liked these posts
+    let likedPostIds = new Set();
+    const currentUserId = req.user?.id;
+    if (currentUserId && posts && posts.length > 0) {
+      const postIds = posts.map((p) => p.id);
+      const { data: likesData, error: likesError } = await supabase
+        .from("post_likes")
+        .select("post_id")
+        .eq("user_id", currentUserId)
+        .in("post_id", postIds);
+
+      if (!likesError && likesData) {
+        likedPostIds = new Set(likesData.map((l) => l.post_id));
+      }
+    }
+
+    // Enrich posts with has_liked
+    const enrichedPosts = posts.map((post) => ({
+      ...post,
+      has_liked: likedPostIds.has(post.id),
+    }));
+
+    // Get total likes across all posts for "Post likes" stat
+    const { data: likeStats, error: likeError } = await supabase
+      .from("posts")
+      .select("likes_count")
+      .eq("user_id", id);
+
+    const totalLikes =
+      likeStats?.reduce((sum, post) => sum + (post.likes_count || 0), 0) || 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        posts: enrichedPosts || [],
+        total: count || 0,
+        totalLikes,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        hasMore: offset + posts?.length < count,
+      },
+    });
   } catch (error) {
     next(error);
   }
