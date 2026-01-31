@@ -1,0 +1,41 @@
+import { View, Text } from "react-native";
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { Ionicons } from "@expo/vector-icons";
+
+/**
+ * User Services Screen (Placeholder)
+ *
+ * This will be built out with:
+ * - Browse available courses
+ * - Filter by category
+ * - Search functionality
+ * - Purchase flow
+ */
+export default function UserServices() {
+  return (
+    <View className="flex-1 bg-white">
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar style="dark" />
+
+      {/* Header */}
+      <View className="px-5 pt-14 pb-4 bg-white">
+        <Text className="text-2xl font-black text-black">Services</Text>
+        <Text className="text-gray-400 mt-1">Browse courses and more</Text>
+      </View>
+
+      {/* Placeholder Content */}
+      <View className="flex-1 items-center justify-center px-8">
+        <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center mb-6">
+          <Ionicons name="briefcase-outline" size={40} color="#9CA3AF" />
+        </View>
+        <Text className="text-xl font-bold text-black text-center mb-2">
+          Coming Soon
+        </Text>
+        <Text className="text-gray-400 text-center">
+          Browse and purchase services from creators.
+        </Text>
+      </View>
+    </View>
+  );
+}

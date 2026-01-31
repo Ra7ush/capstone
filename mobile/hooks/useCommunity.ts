@@ -155,7 +155,9 @@ export function useCommunity(communityId?: string) {
   const createPostMutation = useMutation({
     mutationFn: communityApi.createPost,
     onMutate: async (newPost) => {
-      await queryClient.cancelQueries({ queryKey: ["posts", communityId] });
+      await queryClient.cancelQueries({
+        queryKey: ["posts", communityId],
+      });
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
         ["posts", communityId],
       );
@@ -207,7 +209,9 @@ export function useCommunity(communityId?: string) {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["posts", communityId] });
+      queryClient.invalidateQueries({
+        queryKey: ["posts", communityId],
+      });
     },
   });
 
@@ -221,7 +225,9 @@ export function useCommunity(communityId?: string) {
       return communityApi.likePost(postId);
     },
     onMutate: async (postId) => {
-      await queryClient.cancelQueries({ queryKey: ["posts", communityId] });
+      await queryClient.cancelQueries({
+        queryKey: ["posts", communityId],
+      });
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
         ["posts", communityId],
       );
@@ -264,7 +270,9 @@ export function useCommunity(communityId?: string) {
       // Don't invalidate immediately - trust optimistic update
       // Only refetch in background after a delay to avoid UI flicker
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["posts", communityId] });
+        queryClient.invalidateQueries({
+          queryKey: ["posts", communityId],
+        });
       }, 1000);
     },
   });
@@ -279,7 +287,9 @@ export function useCommunity(communityId?: string) {
       return communityApi.unlikePost(postId);
     },
     onMutate: async (postId) => {
-      await queryClient.cancelQueries({ queryKey: ["posts", communityId] });
+      await queryClient.cancelQueries({
+        queryKey: ["posts", communityId],
+      });
       const previousFeed = queryClient.getQueryData<InfiniteData<FeedResponse>>(
         ["posts", communityId],
       );
@@ -322,7 +332,9 @@ export function useCommunity(communityId?: string) {
       // Don't invalidate immediately - trust optimistic update
       // Only refetch in background after a delay to avoid UI flicker
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["posts", communityId] });
+        queryClient.invalidateQueries({
+          queryKey: ["posts", communityId],
+        });
       }, 1000);
     },
   });

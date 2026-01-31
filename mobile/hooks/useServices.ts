@@ -55,6 +55,51 @@ export async function uploadCourseImage(uri: string): Promise<string> {
   }
 }
 
+/**
+ * Upload a profile image (avatar or cover) to Supabase storage
+ */
+export async function uploadProfileImage(uri: string): Promise<string> {
+  try {
+    // Compress and convert image
+    const manipulatedImage = await manipulateAsync(uri, [], {
+      compress: 0.8,
+      format: SaveFormat.JPEG,
+    });
+
+    const finalUri = manipulatedImage.uri;
+    const originalName = uri.split("/").pop();
+    const fileName = `${originalName?.split(".")[0] || "profile"}_${Date.now()}.jpg`;
+
+    // Read file as base64 and convert to ArrayBuffer
+    const base64 = await FileSystem.readAsStringAsync(finalUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    const fileData = decode(base64);
+
+    // Use 'community' bucket with 'profiles' folder path
+    const filePath = `profiles/${fileName}`;
+
+    const { data, error } = await supabase.storage
+      .from("community")
+      .upload(filePath, fileData, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: "image/jpeg",
+      });
+
+    if (error) throw error;
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("community").getPublicUrl(data.path);
+
+    return publicUrl;
+  } catch (error) {
+    console.error("Error uploading profile image:", error);
+    throw error;
+  }
+}
+
 // ============================================
 // Query Keys
 // ============================================

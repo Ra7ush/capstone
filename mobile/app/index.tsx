@@ -6,16 +6,20 @@ import { useAuthState } from "../hooks/useAuthState";
 import LoadingScreen from "../components/LoadingScreen";
 
 export default function Index() {
-  const { isLoading, session, hasProfile } = useAuthState();
+  const { isLoading, session, hasProfile, user } = useAuthState();
 
   // Show loading while checking auth
   if (isLoading) {
     return <LoadingScreen />;
   }
 
-  // If user is fully authenticated, redirect to home
+  // If user is fully authenticated, redirect based on role
   if (session && hasProfile) {
-    return <Redirect href="/(tabs)" />;
+    const userRole = user?.profile?.role || "user";
+    if (userRole === "creator") {
+      return <Redirect href="/(creator)" />;
+    }
+    return <Redirect href="/(user)" />;
   }
 
   // Otherwise show the welcome/landing page

@@ -4,6 +4,7 @@ import {
   deleteProfile,
   getNotifications,
   getProfile,
+  getUserPosts,
   markNotificationAsRead,
   searchProfiles,
   updateProfile,
@@ -20,6 +21,7 @@ router.get("/search", searchProfiles);
 
 // Wildcard routes last
 router.get("/user/:id", getProfile);
+router.get("/user/:id/posts", getUserPosts);
 router.put("/user/:id", updateProfile);
 router.delete("/user/:id", deleteProfile);
 

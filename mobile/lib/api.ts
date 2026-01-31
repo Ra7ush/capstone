@@ -255,6 +255,15 @@ export const profileApi = {
     });
     return response.data.data;
   },
+  getUserPosts: async (
+    userId: string,
+    { page = 1, limit = 20 }: { page?: number; limit?: number } = {},
+  ) => {
+    const response = await api.get(`/api/profile/user/${userId}/posts`, {
+      params: { page, limit },
+    });
+    return response.data.data;
+  },
   getNotifications: async () => {
     const response = await api.get("/api/profile/notifications/list");
     return response.data.data;

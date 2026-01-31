@@ -4,6 +4,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Alert,
 } from "react-native";
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -11,13 +12,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { useAuthState } from "@/hooks/useAuthState";
 import { useUpdateProfile } from "@/hooks/useProfile";
-import { Alert } from "react-native";
 
 export default function ProfileEdit() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const mode = params.mode as string;
-  const { user } = useAuthState();
+  const { user, refresh } = useAuthState();
   const profile = user?.profile;
 
   const [fullName, setFullName] = useState(profile?.full_name || "");
@@ -57,6 +57,10 @@ export default function ProfileEdit() {
               }
             : undefined,
       });
+
+      // Refresh auth state to ensure global user object is updated immediately
+      await refresh();
+
       router.back();
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -103,7 +107,9 @@ export default function ProfileEdit() {
       <StatusBar style="dark" />
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="px-6 py-8">
+        <View
+          className={`px-6 ${!isBioOnly && !isBasicOnly ? "mt-8" : "py-8"}`}
+        >
           <View className="mb-8">
             <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 px-1">
               {isBioOnly
