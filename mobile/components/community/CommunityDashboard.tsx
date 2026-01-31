@@ -408,6 +408,7 @@ export const CommunityDashboard = ({
               deletePost={deletePost}
               onOpenComments={handleOpenComments}
               onViewImages={handleViewImages}
+              refreshAuth={refreshAuth}
               onEdit={() => {
                 router.push({
                   pathname: "/profile-edit",
@@ -588,6 +589,7 @@ const ProfileTab = ({
   deletePost,
   onOpenComments,
   onViewImages,
+  refreshAuth,
 }: any) => {
   const [coverImage, setCoverImage] = useState<string | null>(
     user.profile?.cover_image_url || null,
@@ -600,6 +602,8 @@ const ProfileTab = ({
     null,
   );
   const [loadingLikeId, setLoadingLikeId] = useState<string | null>(null);
+  const [isUploadingProfile, setIsUploadingProfile] = useState(false);
+
   const router = useRouter();
 
   const initials = user.profile?.full_name
@@ -676,8 +680,6 @@ const ProfileTab = ({
     }
   };
 
-  const [isUploadingProfile, setIsUploadingProfile] = useState(false);
-
   const handlePickProfileImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -697,9 +699,10 @@ const ProfileTab = ({
           profile_image_url: uploadedUrl,
         });
 
-        // We might need to refresh auth/user content here
-        // Assuming parent component or refreshAuth handles it slightly later or we rely on re-render?
-        // Let's rely on basic Alert success for now, ideally refreshAuth() should be called if available.
+        if (refreshAuth) {
+          refreshAuth();
+        }
+
         Alert.alert("Success", "Profile photo updated!");
       }
     } catch (error) {
@@ -752,12 +755,11 @@ const ProfileTab = ({
             await deletePost(postId);
             setPosts((prev) => prev.filter((p) => p.id !== postId));
             // Close modal if deleted post was selected
-            if (selectedPostIndex !== null) {
-              const currentPost = posts[selectedPostIndex];
-              if (currentPost && currentPost.id === postId) {
-                setSelectedPostIndex(null);
-              }
-            }
+            setSelectedPostIndex((currentIndex) => {
+              if (currentIndex === null) return null;
+              // Use setPosts callback to access current posts
+              return null; // Simplify: close modal on any delete from profile
+            });
           } catch (error) {
             console.error("Delete error:", error);
             Alert.alert("Error", "Failed to delete post");
@@ -836,7 +838,10 @@ const ProfileTab = ({
           )}
 
           {/* Back button */}
-          <TouchableOpacity className="absolute top-12 left-4 w-10 h-10 rounded-full bg-black/30 items-center justify-center">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="absolute top-12 left-4 w-10 h-10 rounded-full bg-black/30 items-center justify-center"
+          >
             <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
 

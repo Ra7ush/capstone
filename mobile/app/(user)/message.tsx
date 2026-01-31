@@ -41,11 +41,15 @@ function SearchModal({
       return;
     }
 
-    console.log(`[Frontend] Searching for: "${text}"`);
+    if (__DEV__) {
+      console.log(`[Frontend] Searching for: "${text}"`);
+    }
     setLoading(true);
     try {
       const data = await profileApi.searchProfiles(text);
-      console.log(`[Frontend] Found ${data?.length || 0} results`);
+      if (__DEV__) {
+        console.log(`[Frontend] Found ${data?.length || 0} results`);
+      }
       setResults(data);
     } catch (error) {
       console.error("Search error:", error);
@@ -188,15 +192,23 @@ export default function Message() {
   } = useMessaging();
   const { isUserOnline } = usePresence();
 
+  // const filteredMessages =
+  //   conversations?.filter(
+  //     (conv: any) =>
+  //       conv.other_user?.username
+  //         ?.toLowerCase()
+  //         .includes(search.toLowerCase()) ||
+  //       conv.last_message?.content
+  //         ?.toLowerCase()
+  //         .includes(search.toLowerCase()),
+  //   ) || [];
+
+  const query = search.toLowerCase();
   const filteredMessages =
     conversations?.filter(
       (conv: any) =>
-        conv.other_user?.username
-          ?.toLowerCase()
-          .includes(search.toLowerCase()) ||
-        conv.last_message?.content
-          ?.toLowerCase()
-          .includes(search.toLowerCase()),
+        conv.other_user?.username?.toLowerCase()?.includes(query) ||
+        conv.last_message?.content?.toLowerCase()?.includes(query),
     ) || [];
 
   const getInitials = (name: string) => {
