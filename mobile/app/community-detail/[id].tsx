@@ -198,7 +198,6 @@ function CommentsModal({
     try {
       await addComment({ postId, content: newComment.trim() });
       setNewComment("");
-      refetch();
     } catch {
       Alert.alert("Error", "Failed to post comment");
     }

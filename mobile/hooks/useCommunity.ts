@@ -59,7 +59,7 @@ export type Post = {
     username: string;
     email: string;
     bio?: string;
-    avatar_url?: string;
+    profile_image_url?: string;
     followers_count?: number;
     following_count?: number;
     verification_status?: string;
@@ -78,7 +78,7 @@ type Comment = {
     username: string;
     email: string;
     bio?: string;
-    avatar_url?: string;
+    profile_image_url?: string;
   };
   likes_count: number;
   replies_count: number;

@@ -12,6 +12,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { usePostComments } from "../../hooks/useCommunity";
@@ -46,6 +47,7 @@ interface CommentsModalProps {
   likeComment: (args: { commentId: string; postId: string }) => Promise<any>;
   unlikeComment: (args: { commentId: string; postId: string }) => Promise<any>;
   currentUserId?: string;
+  currentUserImage?: string;
 }
 
 export const CommentsModal = ({
@@ -58,6 +60,7 @@ export const CommentsModal = ({
   likeComment,
   unlikeComment,
   currentUserId,
+  currentUserImage,
 }: CommentsModalProps) => {
   const [newComment, setNewComment] = useState("");
   const [replyingTo, setReplyingTo] = useState<any>(null);
@@ -200,10 +203,18 @@ export const CommentsModal = ({
             ) : comments && comments.length > 0 ? (
               comments.map((comment) => (
                 <View key={comment.id} className="flex-row py-3">
-                  <View className="w-10 h-10 rounded-full bg-gray-300 items-center justify-center">
-                    <Text className="text-gray-600 font-semibold text-sm">
-                      {comment.user?.username?.charAt(0).toUpperCase() || "U"}
-                    </Text>
+                  <View className="w-10 h-10 rounded-full bg-gray-300 items-center justify-center overflow-hidden">
+                    {comment.user?.profile_image_url ? (
+                      <Image
+                        source={{ uri: comment.user.profile_image_url }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text className="text-gray-600 font-semibold text-sm">
+                        {comment.user?.username?.charAt(0).toUpperCase() || "U"}
+                      </Text>
+                    )}
                   </View>
                   <View className="flex-1 ml-3">
                     <View>
@@ -268,8 +279,16 @@ export const CommentsModal = ({
             )}
           </ScrollView>
           <View className="flex-row items-center px-4 py-3 border-t border-gray-200 pb-8">
-            <View className="w-10 h-10 rounded-full bg-gray-300 items-center justify-center">
-              <Text className="text-gray-600 font-semibold text-sm">Me</Text>
+            <View className="w-10 h-10 rounded-full bg-gray-300 items-center justify-center overflow-hidden">
+              {currentUserImage ? (
+                <Image
+                  source={{ uri: currentUserImage }}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text className="text-gray-600 font-semibold text-sm">Me</Text>
+              )}
             </View>
             <View className="flex-1 flex-row items-center mx-3 bg-gray-100 rounded-full px-4 py-2">
               <TextInput

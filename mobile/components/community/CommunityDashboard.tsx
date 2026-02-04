@@ -341,6 +341,9 @@ export const CommunityDashboard = ({
           likeComment={likeComment}
           unlikeComment={unlikeComment}
           currentUserId={currentUserId}
+          currentUserImage={
+            user?.profile?.profile_image_url || user?.profile_image_url
+          }
         />
       )}
 
@@ -396,6 +399,7 @@ export const CommunityDashboard = ({
             isCreatingPost={isCreatingPost}
             activeTab={activeTab}
             onTabChange={setActiveTab}
+            user={user}
           />
         }
         ListFooterComponent={
@@ -419,6 +423,16 @@ export const CommunityDashboard = ({
                   },
                 });
               }}
+              // Comment modal props for ProfileTab's internal modal
+              addComment={addComment}
+              isAddingComment={isAddingComment}
+              deleteComment={deleteComment}
+              likeComment={likeComment}
+              unlikeComment={unlikeComment}
+              currentUserId={currentUserId}
+              currentUserImage={
+                user?.profile?.profile_image_url || user?.profile_image_url
+              }
             />
           ) : isFetchingNextPage ? (
             <ActivityIndicator size="small" color="#000" className="py-4" />
@@ -464,6 +478,7 @@ interface DashboardHeaderProps {
   isCreatingPost: boolean;
   activeTab: string;
   onTabChange: (t: string) => void;
+  user: any;
 }
 
 const DashboardHeader = React.memo(
@@ -483,6 +498,7 @@ const DashboardHeader = React.memo(
     isCreatingPost,
     activeTab,
     onTabChange,
+    user,
   }: DashboardHeaderProps) => (
     <>
       <View className="px-6 pt-16 pb-4 bg-white border-b border-gray-100 flex-row items-center justify-between">
@@ -501,8 +517,16 @@ const DashboardHeader = React.memo(
 
       <View className="px-6 py-6 border-b border-gray-100">
         <View className="flex-row gap-4">
-          <View className="w-12 h-12 rounded-full bg-[#FF4D00] items-center justify-center">
-            <Text className="text-white font-black text-lg">Me</Text>
+          <View className="w-12 h-12 rounded-full bg-[#FF4D00] items-center justify-center overflow-hidden">
+            {user?.profile?.profile_image_url ? (
+              <Image
+                source={{ uri: user.profile.profile_image_url }}
+                className="w-full h-full"
+                resizeMode="cover"
+              />
+            ) : (
+              <Text className="text-white font-black text-lg">Me</Text>
+            )}
           </View>
           <View className="flex-1 bg-gray-50 rounded-3xl p-4 border border-gray-100">
             <TextInput
@@ -580,6 +604,8 @@ const DashboardHeader = React.memo(
   ),
 );
 
+DashboardHeader.displayName = "DashboardHeader";
+
 const ProfileTab = ({
   user,
   onEdit,
@@ -590,6 +616,14 @@ const ProfileTab = ({
   onOpenComments,
   onViewImages,
   refreshAuth,
+  // Comment modal props for ProfileTab's internal modal
+  addComment,
+  isAddingComment,
+  deleteComment,
+  likeComment,
+  unlikeComment,
+  currentUserId,
+  currentUserImage,
 }: any) => {
   const [coverImage, setCoverImage] = useState<string | null>(
     user.profile?.cover_image_url || null,
@@ -603,6 +637,8 @@ const ProfileTab = ({
   );
   const [loadingLikeId, setLoadingLikeId] = useState<string | null>(null);
   const [isUploadingProfile, setIsUploadingProfile] = useState(false);
+  // Local state for comments modal inside ProfileTab's full-screen modal
+  const [commentsPost, setCommentsPost] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -809,7 +845,7 @@ const ProfileTab = ({
                   onLike={handleLocalLike}
                   onDelete={handleLocalDelete}
                   onFollow={() => {}} // No follow needed on own profile
-                  onOpenComments={onOpenComments}
+                  onOpenComments={setCommentsPost}
                   onViewImages={onViewImages}
                   isLikeLoading={loadingLikeId === item.id}
                 />
@@ -817,6 +853,21 @@ const ProfileTab = ({
             )}
             contentContainerStyle={{ paddingBottom: 40, paddingTop: 20 }}
           />
+          {/* Comments Modal rendered inside the full-screen modal to appear on top */}
+          {commentsPost && (
+            <CommentsModal
+              visible={!!commentsPost}
+              onClose={() => setCommentsPost(null)}
+              postId={commentsPost}
+              addComment={addComment}
+              isAddingComment={isAddingComment}
+              deleteComment={deleteComment}
+              likeComment={likeComment}
+              unlikeComment={unlikeComment}
+              currentUserId={currentUserId}
+              currentUserImage={currentUserImage}
+            />
+          )}
         </View>
       </Modal>
 
