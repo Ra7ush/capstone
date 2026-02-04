@@ -13,13 +13,17 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useMemo } from "react";
 import { useMyServices } from "@/hooks/useServices";
+import { useUser } from "@/hooks/useProfile";
 import type { Service } from "@/types";
 
 const STATUS_FILTERS = ["All", "Published", "Draft"];
 
 export default function ServiceTab() {
   const router = useRouter();
-  const { data: services, isLoading, isRefetching, refetch } = useMyServices();
+  const { data: response, isLoading, isRefetching, refetch } = useMyServices();
+  const { data: profile, isLoading: isLoadingProfile } = useUser();
+  const services = response?.data;
+  const meta = response?.meta;
   const [activeStatus, setActiveStatus] = useState("All");
   const [search, setSearch] = useState("");
 
@@ -57,6 +61,58 @@ export default function ServiceTab() {
     if (price === null || price === undefined) return "Free";
     return `$${price.toFixed(2)}`;
   };
+
+  const isVerified = profile?.verification_status === "verified";
+  const isPending = profile?.verification_status === "pending";
+  const isRejected = profile?.verification_status === "rejected";
+
+  if (!isLoadingProfile && !isVerified) {
+    return (
+      <View className="flex-1 bg-white">
+        <Stack.Screen options={{ headerShown: false }} />
+        <StatusBar style="dark" />
+        <View className="flex-1 px-8 items-center justify-center">
+          <View className="w-24 h-24 rounded-full bg-gray-50 items-center justify-center mb-8">
+            <Ionicons
+              name={isPending ? "time-outline" : "lock-closed-outline"}
+              size={48}
+              color={isPending ? "#EAB308" : "#EF4444"}
+            />
+          </View>
+          <Text className="text-3xl font-black text-black text-center mb-4">
+            {isPending ? "Review in Progress" : "Service Tab Locked"}
+          </Text>
+          <Text className="text-gray-400 font-bold text-center leading-6 mb-12">
+            {isPending
+              ? "Your creator identity is currently being verified. You'll be able to manage your services once the review is complete."
+              : isRejected
+                ? "Your verification request was not approved. Please review our guidelines and update your identity documents to unlock this tab."
+                : "Complete your identity verification to start creating and managing your digital services."}
+          </Text>
+
+          <TouchableOpacity
+            onPress={() => router.push("/verification-apply")}
+            className="w-full bg-black py-5 rounded-[2rem] items-center"
+          >
+            <Text className="text-white font-black text-sm uppercase tracking-widest">
+              {isRejected ? "Retry Verification" : "Verify Identity"}
+            </Text>
+          </TouchableOpacity>
+
+          {(isPending || isRejected) && (
+            <TouchableOpacity
+              onPress={() => router.push("/help")}
+              className="mt-6"
+            >
+              <Text className="text-gray-400 font-black text-[10px] uppercase tracking-widest">
+                Contact Support
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-white">

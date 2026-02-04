@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { serviceApi } from "@/lib/api";
-import type { Service, CourseModule, Lesson, CourseResource } from "@/types";
+import type { Service, CourseModule, Lesson, CourseResource, MyServicesResponse, CreateServiceResponse } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { decode } from "base64-arraybuffer";
@@ -128,7 +128,7 @@ export function useMyServices() {
     queryKey: serviceKeys.mine(),
     queryFn: async () => {
       const response = await serviceApi.getMyServices();
-      return response.data as Service[];
+      return response as MyServicesResponse;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
@@ -158,7 +158,7 @@ export function useCreateService() {
 
   return useMutation({
     mutationFn: serviceApi.createService,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: serviceKeys.mine() });
     },
   });

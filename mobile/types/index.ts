@@ -157,6 +157,30 @@ export interface CourseResource {
   created_at: string;
 }
 
+export interface ServiceMeta {
+  published_count: number;
+  is_pro: boolean;
+  free_limit_reached: boolean;
+  free_services_allowed: number;
+}
+
+export interface MyServicesResponse {
+  success: boolean;
+  data: Service[];
+  meta?: ServiceMeta;
+}
+
+export interface CreateServiceResponse {
+  success: boolean;
+  data: Service;
+  warning?: string;
+  meta?: {
+    published_count: number;
+    is_pro: boolean;
+    free_limit_reached: boolean;
+  };
+}
+
 export interface Purchase {
   id: string;
   user_id: string;

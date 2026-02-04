@@ -236,7 +236,7 @@ export default function CreateService() {
       }
 
       Alert.alert("Success", "Service created successfully!", [
-        { text: "OK", onPress: () => router.replace("/(tabs)/service") },
+        { text: "OK", onPress: () => router.replace("/(creator)/service") },
       ]);
     } catch (error) {
       console.error("Creation error:", error);
