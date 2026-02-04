@@ -518,9 +518,12 @@ const DashboardHeader = React.memo(
       <View className="px-6 py-6 border-b border-gray-100">
         <View className="flex-row gap-4">
           <View className="w-12 h-12 rounded-full bg-[#FF4D00] items-center justify-center overflow-hidden">
-            {user?.profile?.profile_image_url ? (
+            {user?.profile?.profile_image_url || user?.profile_image_url ? (
               <Image
-                source={{ uri: user.profile.profile_image_url }}
+                source={{
+                  uri:
+                    user?.profile?.profile_image_url || user?.profile_image_url,
+                }}
                 className="w-full h-full"
                 resizeMode="cover"
               />
