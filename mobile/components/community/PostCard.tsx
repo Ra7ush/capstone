@@ -160,10 +160,18 @@ export const PostCard = memo(
         {/* Post Header */}
         <View className="flex-row items-center justify-between mb-4">
           <View className="flex-row items-center gap-3">
-            <View className="w-10 h-10 rounded-full bg-blue-500 items-center justify-center">
-              <Text className="text-white font-bold">
-                {post.user?.username?.charAt(0).toUpperCase() || "U"}
-              </Text>
+            <View className="w-10 h-10 rounded-full bg-blue-500 items-center justify-center overflow-hidden">
+              {post.user?.profile_image_url ? (
+                <Image
+                  source={{ uri: post.user.profile_image_url }}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text className="text-white font-bold">
+                  {post.user?.username?.charAt(0).toUpperCase() || "U"}
+                </Text>
+              )}
             </View>
             <View>
               <View className="flex-row items-center gap-1.5">

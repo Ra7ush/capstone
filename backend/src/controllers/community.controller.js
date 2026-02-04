@@ -285,7 +285,9 @@ export async function createPost(req, res, next) {
         user_id: userId,
         community_id: community_id || null,
       })
-      .select("*, user:users(id, username, email, creators(bio))")
+      .select(
+        "*, user:users(id, username, email, profile_image_url, creators(bio))",
+      )
       .single();
 
     if (data?.user) {
@@ -324,7 +326,7 @@ export async function getFeed(req, res, next) {
         let query = supabase
           .from("posts")
           .select(
-            "*, user:users(id, username, email, followers_count, following_count, creators(bio, verification_status)), community:communities(*)",
+            "*, user:users(id, username, email, profile_image_url, followers_count, following_count, creators(bio, verification_status)), community:communities(*)",
             { count: "exact" },
           );
 
@@ -407,7 +409,9 @@ export async function getPostById(req, res, next) {
     const { id } = req.params;
     const { data, error } = await supabase
       .from("posts")
-      .select("*, user:users(id, username, email, creators(bio))")
+      .select(
+        "*, user:users(id, username, email, profile_image_url, creators(bio))",
+      )
       .eq("id", id)
       .single();
 
@@ -729,6 +733,9 @@ export async function addComment(req, res, next) {
         parent_row_id: parentId,
       });
     }
+
+    // Invalidate comments cache for this post
+    await invalidatePattern(`comments:post:${id}`);
 
     return res.status(201).json({ success: true, data });
   } catch (error) {
