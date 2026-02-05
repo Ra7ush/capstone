@@ -1,5 +1,6 @@
 import axios from "axios";
 import { supabase } from "./supabase";
+import type { MyServicesResponse, CreateServiceResponse } from "@/types";
 
 /**
  * Axios instance with Supabase auth token interceptor
@@ -87,6 +88,10 @@ export const creatorApi = {
     const response = await api.put(`/api/creator/profile/${userId}`, data);
     return response.data.data;
   },
+  getRecentActivity: async () => {
+    const response = await api.get("/api/creator/activity");
+    return response.data.data;
+  },
 };
 
 export const communityApi = {
@@ -123,9 +128,12 @@ export const communityApi = {
     const response = await api.post("/api/community", communityData);
     return response.data;
   },
-  getDiscoverCommunities: async (category?: string) => {
+  getDiscoverCommunities: async (params?: {
+    category?: string;
+    search?: string;
+  }) => {
     const response = await api.get("/api/community/discover", {
-      params: { category },
+      params,
     });
     return response.data;
   },
@@ -339,7 +347,7 @@ export const serviceApi = {
   // Services CRUD
   getMyServices: async () => {
     const response = await api.get("/api/service/mine");
-    return response.data;
+    return response.data as MyServicesResponse;
   },
   getServiceById: async (id: string) => {
     const response = await api.get(`/api/service/${id}`);
@@ -353,7 +361,7 @@ export const serviceApi = {
     thumbnail_url?: string;
   }) => {
     const response = await api.post("/api/service", data);
-    return response.data;
+    return response.data as CreateServiceResponse;
   },
   updateService: async (
     id: string,

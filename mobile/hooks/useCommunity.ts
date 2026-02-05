@@ -118,6 +118,7 @@ export function useCommunity(communityId?: string) {
         limit: 10,
         community_id: communityId,
       }),
+    enabled: !!communityId,
     getNextPageParam: (lastPage) =>
       lastPage.pagination.hasMore ? lastPage.pagination.page + 1 : undefined,
     initialPageParam: 1,
@@ -838,10 +839,13 @@ export function useJoinedCommunities() {
   });
 }
 
-export function useDiscoverCommunities(category?: string) {
+export function useDiscoverCommunities(params?: {
+  category?: string;
+  search?: string;
+}) {
   return useQuery<{ success: boolean; data: Community[] }>({
-    queryKey: ["communities", "discover", category],
-    queryFn: () => communityApi.getDiscoverCommunities(category),
+    queryKey: ["communities", "discover", params?.category, params?.search],
+    queryFn: () => communityApi.getDiscoverCommunities(params),
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // 30 minutes
   });

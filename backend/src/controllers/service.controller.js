@@ -15,6 +15,23 @@ export async function createService(req, res, next) {
     const { title, description, category, price, thumbnail_url } = req.body;
     const creatorId = req.user.id;
 
+    const { data: creator, error: creatorError } = await supabase
+      .from("creators")
+      .select("subscription_plan")
+      .eq("user_id", creatorId)
+      .maybeSingle();
+
+    if (creatorError) throw creatorError;
+    const isPro = creator?.subscription_plan === "pro";
+
+    const { count, error: countError } = await supabase
+      .from("services")
+      .select("id", { count: "exact", head: true })
+      .eq("creator_id", creatorId)
+      .eq("status", "published");
+
+    if (countError) throw countError;
+
     const { data, error } = await supabase
       .from("services")
       .insert([
@@ -22,7 +39,7 @@ export async function createService(req, res, next) {
           title,
           description,
           category,
-          type: SERVICE_TYPES.COURSE, // Fixed to course
+          type: SERVICE_TYPES.COURSE,
           price: price ? parseFloat(price) : null,
           thumbnail_url,
           creator_id: creatorId,
@@ -34,7 +51,21 @@ export async function createService(req, res, next) {
 
     if (error) throw error;
 
-    res.status(201).json({ success: true, data });
+    const freeLimitReached = !isPro && count >= 1;
+
+    res.status(201).json({
+      success: true,
+      data,
+      warning: freeLimitReached
+        ? "You have reached your free service limit. Upgrade to Pro plan to publish more services."
+        : undefined,
+      meta: {
+        published_count: count || 0,
+        is_pro: isPro,
+        free_limit_reached: freeLimitReached,
+        free_services_allowed: 1,
+      },
+    });
   } catch (error) {
     logger.error("Error creating service:", error);
     next(error);
@@ -44,6 +75,24 @@ export async function createService(req, res, next) {
 export async function getMyServices(req, res, next) {
   try {
     const creatorId = req.user.id;
+
+    const { data: creator, error: creatorError } = await supabase
+      .from("creators")
+      .select("subscription_plan")
+      .eq("user_id", creatorId)
+      .maybeSingle();
+
+    if (creatorError) throw creatorError;
+    const isPro = creator?.subscription_plan === "pro";
+
+    const { count, error: countError } = await supabase
+      .from("services")
+      .select("id", { count: "exact", head: true })
+      .eq("creator_id", creatorId)
+      .eq("status", "published");
+
+    if (countError) throw countError;
+
     const { data, error } = await supabase
       .from("services")
       .select(
@@ -57,14 +106,24 @@ export async function getMyServices(req, res, next) {
 
     if (error) throw error;
 
-    // Transform to include module count
     const services = data.map((service) => ({
       ...service,
       modules_count: service.modules?.[0]?.count || 0,
       modules: undefined,
     }));
 
-    res.status(200).json({ success: true, data: services });
+    const freeLimitReached = !isPro && count >= 1;
+
+    res.status(200).json({
+      success: true,
+      data: services,
+      meta: {
+        published_count: count || 0,
+        is_pro: isPro,
+        free_limit_reached: freeLimitReached,
+        free_services_allowed: 1,
+      },
+    });
   } catch (error) {
     logger.error("Error fetching services:", error);
     next(error);
@@ -189,6 +248,48 @@ export async function publishService(req, res, next) {
     const { id } = req.params;
     const creator_id = req.user.id;
 
+    const { data: creator, error: creatorError } = await supabase
+      .from("creators")
+      .select("subscription_plan")
+      .eq("user_id", creator_id)
+      .maybeSingle();
+
+    if (creatorError) throw creatorError;
+    const isPro = creator?.subscription_plan === "pro";
+
+    const { data: currentService, error: serviceError } = await supabase
+      .from("services")
+      .select("id, status")
+      .eq("id", id)
+      .eq("creator_id", creator_id)
+      .single();
+
+    if (serviceError || !currentService) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Service not found" });
+    }
+
+    if (currentService.status === "published") {
+      return res.status(200).json({ success: true, data: currentService });
+    }
+
+    const { count: publishedCount, error: countError } = await supabase
+      .from("services")
+      .select("id", { count: "exact", head: true })
+      .eq("creator_id", creator_id)
+      .eq("status", "published");
+
+    if (countError) throw countError;
+
+    if (!isPro && publishedCount >= 1) {
+      return res.status(403).json({
+        success: false,
+        error: "Free plan limit reached. Upgrade to Pro plan to publish more services.",
+        code: "FREE_PLAN_LIMIT",
+      });
+    }
+
     const { data, error } = await supabase
       .from("services")
       .update({ status: "published" })
@@ -198,10 +299,6 @@ export async function publishService(req, res, next) {
       .single();
 
     if (error) throw error;
-    if (!data)
-      return res
-        .status(404)
-        .json({ success: false, error: "Service not found" });
 
     res.status(200).json({ success: true, data });
   } catch (error) {

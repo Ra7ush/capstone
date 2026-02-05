@@ -24,6 +24,7 @@ import {
   useDeleteLesson,
   useUpdateModule,
   useUpdateLesson,
+  useMyServices,
 } from "@/hooks/useServices";
 import type { CourseModule, Lesson } from "@/types";
 
@@ -31,6 +32,8 @@ export default function CourseDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: service, isLoading, refetch } = useService(id);
+  const { data: myServicesResponse } = useMyServices();
+  const meta = myServicesResponse?.meta;
 
   const updateService = useUpdateService();
   const deleteService = useDeleteService();
@@ -133,11 +136,40 @@ export default function CourseDetail() {
       if (service?.status === "published") {
         await unpublishService.mutateAsync(id);
       } else {
+        // Check limits before publishing
+        if (
+          meta &&
+          !meta.is_pro &&
+          meta.published_count >= (meta.free_services_allowed || 1)
+        ) {
+          Alert.alert(
+            "Free Plan Limit Reached",
+            "You can only publish 1 course on the free plan. Upgrade to Pro to publish unlimited courses.",
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Upgrade to Pro",
+                onPress: () => {
+                  router.push("/subscription-upgrade");
+                },
+              },
+            ],
+          );
+          return;
+        }
+
         await publishService.mutateAsync(id);
       }
       refetch();
-    } catch (error) {
-      Alert.alert("Error", "Failed to update publish status");
+    } catch (error: any) {
+      if (error?.response?.data?.code === "FREE_PLAN_LIMIT") {
+        Alert.alert(
+          "Free Plan Limit Reached",
+          "You can only publish 1 course on the free plan. Upgrade to Pro to publish unlimited courses.",
+        );
+      } else {
+        Alert.alert("Error", "Failed to update publish status");
+      }
     }
   };
 

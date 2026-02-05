@@ -234,10 +234,12 @@ export async function getCreatorStats(req, res, next) {
           `[getCreatorStats] Cache miss -> fetching from Supabase for ${userId}`,
         );
 
-        // 1. Get creator basic details and wallet balance
+        // 1. Get creator basic details, wallet balance, and rating
         const { data: creator, error: creatorError } = await supabase
           .from("creators")
-          .select("user_id, wallet_balance")
+          .select(
+            "user_id, wallet_balance, total_earnings, average_rating, total_ratings",
+          )
           .eq("user_id", userId)
           .single();
 
@@ -275,9 +277,44 @@ export async function getCreatorStats(req, res, next) {
           0,
         );
 
+        // 3. Get followers count
+        const { count: followersCount, error: followersError } = await supabase
+          .from("follows")
+          .select("*", { count: "exact", head: true })
+          .eq("following_id", userId);
+
+        if (followersError) {
+          logger.warn("Error fetching followers count:", followersError);
+        }
+
+        // 4. Calculate monthly revenue (completed payouts this month)
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+
+        const { data: monthlyPayouts, error: monthlyError } = await supabase
+          .from("payouts")
+          .select("amount")
+          .eq("creator_id", creator.user_id)
+          .eq("status", "completed")
+          .gte("created_at", startOfMonth.toISOString());
+
+        let monthlyRevenue = 0;
+        if (!monthlyError && monthlyPayouts) {
+          monthlyRevenue = monthlyPayouts.reduce(
+            (sum, p) => sum + parseFloat(p.amount),
+            0,
+          );
+        }
+
         const result = {
           wallet_balance: parseFloat(creator.wallet_balance || 0),
           pending_payout: pendingPayoutTotal,
+          followers_count: followersCount || 0,
+          monthly_revenue: monthlyRevenue,
+          total_earnings: parseFloat(creator.total_earnings || 0),
+          average_rating: parseFloat(creator.average_rating || 0),
+          total_ratings: creator.total_ratings || 0,
           currency: "USD",
         };
 
@@ -395,4 +432,145 @@ export async function updateCreatorProfile(req, res, next) {
 export async function deleteCreatorProfile(req, res) {
   try {
   } catch (error) {}
+}
+
+/**
+ * Get recent activity for a creator (new followers, comments on posts)
+ */
+export async function getRecentActivity(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const cacheKey = `creator_activity:${userId}`;
+
+    const activity = await getOrSet(
+      cacheKey,
+      async () => {
+        const activities = [];
+
+        // 1. Get recent followers (people who followed this creator)
+        const { data: followers, error: followersError } = await supabase
+          .from("follows")
+          .select(
+            `
+            id,
+            created_at,
+            follower:users!follows_follower_id_fkey (
+              id,
+              username,
+              full_name,
+              profile_image_url
+            )
+          `,
+          )
+          .eq("following_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        if (!followersError && followers) {
+          for (const f of followers) {
+            activities.push({
+              id: `follow_${f.id}`,
+              type: "follow",
+              message: `${f.follower?.full_name || f.follower?.username || "Someone"} started following you`,
+              user: f.follower,
+              created_at: f.created_at,
+            });
+          }
+        }
+
+        // 2. Get recent comments on creator's posts
+        const { data: comments, error: commentsError } = await supabase
+          .from("comments")
+          .select(
+            `
+            id,
+            content,
+            created_at,
+            user:users!post_comments_user_id_fkey (
+              id,
+              username,
+              full_name,
+              profile_image_url
+            ),
+            post:posts!post_comments_post_id_fkey (
+              id,
+              user_id
+            )
+          `,
+          )
+          .eq("post.user_id", userId)
+          .neq("user_id", userId) // Exclude self-comments
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        if (!commentsError && comments) {
+          for (const c of comments) {
+            if (c.post) {
+              // Filter valid comments
+              activities.push({
+                id: `comment_${c.id}`,
+                type: "comment",
+                message: `${c.user?.full_name || c.user?.username || "Someone"} commented on your post`,
+                user: c.user,
+                created_at: c.created_at,
+              });
+            }
+          }
+        }
+
+        // 3. Get recent post likes
+        const { data: likes, error: likesError } = await supabase
+          .from("post_likes")
+          .select(
+            `
+            id,
+            created_at,
+            user:users!post_likes_user_id_fkey (
+              id,
+              username,
+              full_name,
+              profile_image_url
+            ),
+            post:posts!post_likes_post_id_fkey (
+              id,
+              user_id
+            )
+          `,
+          )
+          .eq("post.user_id", userId)
+          .neq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        if (!likesError && likes) {
+          for (const l of likes) {
+            if (l.post) {
+              activities.push({
+                id: `like_${l.id}`,
+                type: "like",
+                message: `${l.user?.full_name || l.user?.username || "Someone"} liked your post`,
+                user: l.user,
+                created_at: l.created_at,
+              });
+            }
+          }
+        }
+
+        // Sort all activities by date and return top 10
+        activities.sort(
+          (a, b) => new Date(b.created_at) - new Date(a.created_at),
+        );
+
+        return activities.slice(0, 10);
+      },
+      30, // 30 second TTL for activity feed
+    );
+
+    res.status(200).json({
+      success: true,
+      data: activity,
+    });
+  } catch (error) {
+    next(error);
+  }
 }

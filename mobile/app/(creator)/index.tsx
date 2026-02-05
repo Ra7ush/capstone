@@ -5,16 +5,22 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { supabase } from "@/lib/supabase";
-import { useCreatorStats } from "@/hooks/useCreator";
+import {
+  useCreatorStats,
+  useRecentActivity,
+  ActivityItem,
+} from "@/hooks/useCreator";
 import { useAuthState } from "@/hooks/useAuthState";
 import { useUser } from "@/hooks/useProfile";
-import { useState, useEffect } from "react";
+import { useMyServices } from "@/hooks/useServices";
+import { useState } from "react";
 
 export default function Home() {
   const router = useRouter();
@@ -29,6 +35,10 @@ export default function Home() {
     isLoading: isLoadingStats,
     refetch: refetchStats,
   } = useCreatorStats();
+  const { data: myServicesResponse, refetch: refetchMyServices } =
+    useMyServices();
+  const { data: activities, refetch: refetchActivity } = useRecentActivity();
+  const meta = myServicesResponse?.meta;
   const [refreshing, setRefreshing] = useState(false);
 
   // Prioritize hook data (dbUser) over auth state, but fallback to authUser
@@ -38,9 +48,43 @@ export default function Home() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refetchUser(), refreshAuth(), refetchStats()]);
+      await Promise.all([
+        refetchUser(),
+        refreshAuth(),
+        refetchStats(),
+        refetchMyServices(),
+        refetchActivity(),
+      ]);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  // Helper to format relative time
+  const formatTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  };
+
+  // Helper to get activity color
+  const getActivityColor = (type: string) => {
+    switch (type) {
+      case "follow":
+        return { bg: "bg-blue-100", text: "text-blue-600" };
+      case "comment":
+        return { bg: "bg-purple-100", text: "text-purple-600" };
+      case "like":
+        return { bg: "bg-red-100", text: "text-red-600" };
+      default:
+        return { bg: "bg-gray-100", text: "text-gray-600" };
     }
   };
 
@@ -157,6 +201,32 @@ export default function Home() {
             </TouchableOpacity>
           )}
 
+          {/* Upgrade Banner for Free Users */}
+          {!meta?.is_pro && !isLoadingUser && (
+            <TouchableOpacity
+              onPress={() => router.push("/subscription-upgrade")}
+              className="bg-[#FF4D00]/10 border border-[#FF4D00]/20 rounded-3xl p-5 mb-8 flex-row items-center justify-between"
+            >
+              <View className="flex-1 mr-4">
+                <View className="flex-row items-center mb-1">
+                  <Ionicons name="sparkles" size={16} color="#FF4D00" />
+                  <Text className="text-[#FF4D00] font-black text-[10px] uppercase tracking-widest ml-1">
+                    Nexus Pro
+                  </Text>
+                </View>
+                <Text className="text-black font-black text-lg">
+                  Scale Your Store
+                </Text>
+                <Text className="text-gray-500 text-xs font-medium">
+                  Unlock unlimited courses, lower fees & priority support.
+                </Text>
+              </View>
+              <View className="bg-[#FF4D00] w-12 h-12 rounded-full items-center justify-center">
+                <Ionicons name="arrow-up" size={24} color="white" />
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* Revenue Snapshot */}
           <View className="mb-8">
             <View className="bg-black rounded-[2.5rem] p-6 shadow-xl shadow-black/20">
@@ -225,52 +295,61 @@ export default function Home() {
               <View className="w-[48%] bg-gray-50 rounded-3xl p-5 border border-gray-100">
                 <View className="flex-row justify-between mb-2">
                   <Ionicons name="people" size={20} color="#9CA3AF" />
-                  <Text className="text-green-500 text-[10px] font-black">
-                    +12%
-                  </Text>
                 </View>
-                <Text className="text-2xl font-black text-black">1,234</Text>
+                <Text className="text-2xl font-black text-black">
+                  {stats?.followers_count?.toLocaleString() || "0"}
+                </Text>
                 <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
-                  Total Followers
+                  Followers
                 </Text>
               </View>
 
               <View className="w-[48%] bg-gray-50 rounded-3xl p-5 border border-gray-100">
                 <View className="flex-row justify-between mb-2">
                   <Ionicons name="cash-outline" size={20} color="#9CA3AF" />
-                  <Text className="text-green-500 text-[10px] font-black">
-                    +8%
-                  </Text>
                 </View>
-                <Text className="text-2xl font-black text-black">$4,890</Text>
+                <Text className="text-2xl font-black text-black">
+                  $
+                  {stats?.monthly_revenue?.toLocaleString(undefined, {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  }) || "0"}
+                </Text>
                 <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
-                  Monthly Revenue
+                  This Month
                 </Text>
               </View>
 
               <View className="w-[48%] bg-gray-50 rounded-3xl p-5 border border-gray-100">
                 <View className="flex-row justify-between mb-2">
-                  <Ionicons name="star" size={20} color="#9CA3AF" />
-                  <Text className="text-orange-500 text-[10px] font-black">
-                    98%
-                  </Text>
+                  <Ionicons name="wallet-outline" size={20} color="#9CA3AF" />
                 </View>
-                <Text className="text-2xl font-black text-black">4.9</Text>
+                <Text className="text-2xl font-black text-black">
+                  $
+                  {stats?.total_earnings?.toLocaleString(undefined, {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  }) || "0"}
+                </Text>
+                <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                  Total Earned
+                </Text>
+              </View>
+
+              <View className="w-[48%] bg-gray-50 rounded-3xl p-5 border border-gray-100">
+                <View className="flex-row justify-between mb-2">
+                  <Ionicons name="star" size={20} color="#FBBF24" />
+                  {stats?.total_ratings ? (
+                    <Text className="text-gray-400 text-[10px] font-black">
+                      {stats.total_ratings} reviews
+                    </Text>
+                  ) : null}
+                </View>
+                <Text className="text-2xl font-black text-black">
+                  {stats?.average_rating?.toFixed(1) || "0.0"}
+                </Text>
                 <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
                   Rating
-                </Text>
-              </View>
-
-              <View className="w-[48%] bg-gray-50 rounded-3xl p-5 border border-gray-100">
-                <View className="flex-row justify-between mb-2">
-                  <Ionicons name="trending-up" size={20} color="#9CA3AF" />
-                  <Text className="text-blue-500 text-[10px] font-black">
-                    Top 1%
-                  </Text>
-                </View>
-                <Text className="text-2xl font-black text-black">#42</Text>
-                <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
-                  Rank
                 </Text>
               </View>
             </View>
@@ -283,7 +362,7 @@ export default function Home() {
             </Text>
 
             <TouchableOpacity
-              onPress={() => router.push("/(tabs)/community")}
+              onPress={() => router.push("/(creator)/community")}
               className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center mb-4 shadow-sm"
             >
               <View className="w-12 h-12 rounded-full bg-orange-50 items-center justify-center mr-4">
@@ -301,7 +380,7 @@ export default function Home() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push("/(tabs)/service")}
+              onPress={() => router.push("/(creator)/service")}
               className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center mb-4 shadow-sm"
             >
               <View className="w-12 h-12 rounded-full bg-blue-50 items-center justify-center mr-4">
@@ -319,7 +398,7 @@ export default function Home() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push("/(tabs)/message")}
+              onPress={() => router.push("/(creator)/message")}
               className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center mb-4 shadow-sm"
             >
               <View className="w-12 h-12 rounded-full bg-purple-50 items-center justify-center mr-4">
@@ -339,7 +418,7 @@ export default function Home() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push("/(tabs)/profile")}
+              onPress={() => router.push("/(creator)/profile")}
               className="bg-white border border-gray-100 rounded-3xl p-5 flex-row items-center shadow-sm"
             >
               <View className="w-12 h-12 rounded-full bg-green-50 items-center justify-center mr-4">
@@ -363,69 +442,67 @@ export default function Home() {
               <Text className="text-xs font-black text-gray-400 uppercase tracking-widest">
                 Recent Activity
               </Text>
-              <TouchableOpacity>
-                <Text className="text-[#FF4D00] text-xs font-bold">
-                  View All
-                </Text>
-              </TouchableOpacity>
             </View>
 
             <View className="bg-gray-50 rounded-[2.5rem] p-2 border border-gray-100">
-              <View className="bg-white rounded-[2rem] p-4 flex-row items-center mb-1">
-                <View className="w-10 h-10 rounded-full bg-orange-100 items-center justify-center mr-3">
-                  <Text className="text-orange-600 font-bold">JD</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-black font-bold text-sm">
-                    John Doe joined your community
-                  </Text>
-                  <Text className="text-gray-400 text-[10px] font-medium">
-                    2 min ago
-                  </Text>
-                </View>
-              </View>
+              {activities && activities.length > 0 ? (
+                activities.slice(0, 5).map((activity, index) => {
+                  const colors = getActivityColor(activity.type);
+                  const initials = activity.user?.full_name
+                    ? activity.user.full_name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .slice(0, 2)
+                        .toUpperCase()
+                    : activity.user?.username?.slice(0, 2).toUpperCase() ||
+                      "??";
 
-              <View className="bg-white rounded-[2rem] p-4 flex-row items-center mb-1">
-                <View className="w-10 h-10 rounded-full bg-blue-100 items-center justify-center mr-3">
-                  <Text className="text-blue-600 font-bold">SM</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-black font-bold text-sm">
-                    Sarah M. purchased Premium tier
+                  return (
+                    <View
+                      key={activity.id}
+                      className={`bg-white rounded-[2rem] p-4 flex-row items-center ${index < 4 ? "mb-1" : ""}`}
+                    >
+                      {activity.user?.profile_image_url ? (
+                        <Image
+                          source={{ uri: activity.user.profile_image_url }}
+                          className="w-10 h-10 rounded-full mr-3"
+                        />
+                      ) : (
+                        <View
+                          className={`w-10 h-10 rounded-full ${colors.bg} items-center justify-center mr-3`}
+                        >
+                          <Text className={`${colors.text} font-bold`}>
+                            {initials}
+                          </Text>
+                        </View>
+                      )}
+                      <View className="flex-1">
+                        <Text className="text-black font-bold text-sm">
+                          {activity.message}
+                        </Text>
+                        <Text className="text-gray-400 text-[10px] font-medium">
+                          {formatTimeAgo(activity.created_at)}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })
+              ) : (
+                <View className="bg-white rounded-[2rem] p-6 items-center">
+                  <Ionicons
+                    name="notifications-off-outline"
+                    size={32}
+                    color="#D1D5DB"
+                  />
+                  <Text className="text-gray-400 font-bold text-sm mt-2">
+                    No recent activity
                   </Text>
-                  <Text className="text-gray-400 text-[10px] font-medium">
-                    1 hour ago
+                  <Text className="text-gray-300 text-xs">
+                    New follows, likes and comments will appear here
                   </Text>
                 </View>
-              </View>
-
-              <View className="bg-white rounded-[2rem] p-4 flex-row items-center mb-1">
-                <View className="w-10 h-10 rounded-full bg-purple-100 items-center justify-center mr-3">
-                  <Text className="text-purple-600 font-bold">AK</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-black font-bold text-sm">
-                    Alex K. commented on your post
-                  </Text>
-                  <Text className="text-gray-400 text-[10px] font-medium">
-                    3 hours ago
-                  </Text>
-                </View>
-              </View>
-
-              <View className="bg-white rounded-[2rem] p-4 flex-row items-center">
-                <View className="w-10 h-10 rounded-full bg-green-100 items-center justify-center mr-3">
-                  <Text className="text-green-600 font-bold">MR</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-black font-bold text-sm">
-                    Mike R. booked a consultation
-                  </Text>
-                  <Text className="text-gray-400 text-[10px] font-medium">
-                    5 hours ago
-                  </Text>
-                </View>
-              </View>
+              )}
             </View>
           </View>
 

@@ -136,7 +136,7 @@ export default function Profile() {
             {
               icon: "layers-outline",
               label: "Manage Services",
-              route: "/(tabs)/service",
+              route: "/(user)/service",
             },
             {
               icon: "shield-checkmark-outline",
@@ -145,11 +145,15 @@ export default function Profile() {
               value:
                 profile?.verification_status === "pending"
                   ? "Under Review"
-                  : undefined,
+                  : profile?.verification_status === "verified"
+                    ? "Verified"
+                    : undefined,
               statusColor:
                 profile?.verification_status === "pending"
                   ? "text-yellow-500"
-                  : undefined,
+                  : profile?.verification_status === "verified"
+                    ? "text-green-500"
+                    : undefined,
             },
             {
               icon: "trending-up-outline",

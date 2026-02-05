@@ -173,14 +173,18 @@ export async function updateUser(req, res, next) {
 
     res.status(200).json({ message: "User updated successfully", data });
 
-    // Invalidate dashboard stats since user counts/statuses might have changed
-    // await invalidatePattern("admin:dashboard:*");
-    try {
-      await invalidatePattern("admin:dashboard:*");
-    } catch (cacheError) {
+    // Invalidate dashboard stats and the specific user's profile cache
+    const [dashboardDeleted, profileDeleted] = await Promise.all([
+      invalidatePattern("admin:dashboard:*"),
+      invalidatePattern(`profile:${id}`),
+    ]);
+    if (dashboardDeleted || profileDeleted) {
+      logger.info(
+        `[updateUser] Cache invalidated: dashboard=${dashboardDeleted}, profile=${profileDeleted}`,
+      );
+    } else {
       logger.warn(
-        "Cache invalidation failed for admin:dashboard:*",
-        cacheError,
+        `[updateUser] Cache invalidation returned 0 deletions for profile:${id} and admin:dashboard:*`,
       );
     }
   } catch (error) {

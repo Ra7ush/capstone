@@ -17,6 +17,8 @@ import { supabase } from "@/lib/supabase";
 import { useAuthState } from "@/hooks/useAuthState";
 import { useFollow } from "@/hooks/useFollow";
 import { useUser } from "@/hooks/useProfile";
+import { useCreatorStats } from "@/hooks/useCreator";
+import { useMyServices } from "@/hooks/useServices";
 import { formatTimeAgo } from "@/lib/utils";
 import { RefreshControl } from "react-native";
 
@@ -41,10 +43,15 @@ export default function Profile() {
   const { followers, following, isLoadingFollowers, isLoadingFollowing } =
     useFollow(authUser?.id);
 
+  const { data: creatorStats, refetch: refetchStats } = useCreatorStats();
+  const { data: myServicesResponse, refetch: refetchServices } =
+    useMyServices();
+
   const stats = {
-    followers: profile?.followers_count || 0,
-    following: profile?.following_count || 0,
-    rating: profile?.rating || 4.9,
+    courses: myServicesResponse?.data?.length || 0,
+    followers: creatorStats?.followers_count || 0,
+    rating: creatorStats?.average_rating || 0,
+    totalRatings: creatorStats?.total_ratings || 0,
   };
 
   const handleOpenModal = (type: "followers" | "following") => {
@@ -60,7 +67,12 @@ export default function Profile() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refetchUser(), refreshAuth()]);
+      await Promise.all([
+        refetchUser(),
+        refreshAuth(),
+        refetchStats(),
+        refetchServices(),
+      ]);
     } finally {
       setRefreshing(false);
     }
@@ -136,7 +148,7 @@ export default function Profile() {
             {
               icon: "layers-outline",
               label: "Manage Services",
-              route: "/(tabs)/service",
+              route: "/(creator)/service",
             },
             {
               icon: "shield-checkmark-outline",
@@ -145,11 +157,15 @@ export default function Profile() {
               value:
                 profile?.verification_status === "pending"
                   ? "Under Review"
-                  : undefined,
+                  : profile?.verification_status === "verified"
+                    ? "Verified"
+                    : undefined,
               statusColor:
                 profile?.verification_status === "pending"
                   ? "text-yellow-500"
-                  : undefined,
+                  : profile?.verification_status === "verified"
+                    ? "text-green-500"
+                    : undefined,
             },
             {
               icon: "trending-up-outline",
@@ -234,30 +250,19 @@ export default function Profile() {
           {/* Core Stats */}
           <View className="flex-row bg-white/5 rounded-3xl p-4 border border-white/10">
             <TouchableOpacity
-              onPress={() => handleOpenModal("followers")}
+              onPress={() => router.push("/(creator)/service")}
               className="flex-1 items-center border-r border-white/10"
             >
               <Text className="text-white font-black text-lg italic">
-                {stats.followers}
+                {stats.courses}
               </Text>
               <Text className="text-gray-500 text-[10px] font-black uppercase">
-                Followers
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => handleOpenModal("following")}
-              className="flex-1 items-center border-r border-white/10"
-            >
-              <Text className="text-white font-black text-lg italic">
-                {stats.following}
-              </Text>
-              <Text className="text-gray-500 text-[10px] font-black uppercase">
-                Following
+                Courses
               </Text>
             </TouchableOpacity>
             <View className="flex-1 items-center">
               <Text className="text-white font-black text-lg italic">
-                {stats.rating}
+                {stats.rating.toFixed(1)}
               </Text>
               <Text className="text-gray-500 text-[10px] font-black uppercase">
                 Rating

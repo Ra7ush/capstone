@@ -93,7 +93,7 @@ export async function createCommunity(req, res, next) {
 export async function getDiscoverCommunities(req, res, next) {
   try {
     const userId = req.user?.id;
-    const { category } = req.query;
+    const { category, search } = req.query;
 
     let query = supabase
       .from("communities")
@@ -107,6 +107,14 @@ export async function getDiscoverCommunities(req, res, next) {
       category !== "undefined";
     if (isValidCategory) {
       query = query.eq("category", category);
+    }
+
+    if (search && search.trim() !== "") {
+      // Escape special PostgREST filter characters
+      const sanitizedSearch = search.trim().replace(/[%_.*,()]/g, "");
+      query = query.or(
+        `name.ilike.%${sanitizedSearch}%,description.ilike.%${sanitizedSearch}%`,
+      );
     }
 
     // If userId is provided, exclude communities already joined

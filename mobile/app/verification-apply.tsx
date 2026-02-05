@@ -264,7 +264,7 @@ export default function VerificationApply() {
       Alert.alert(
         "Success",
         "Verification submitted! Admins will review it soon.",
-        [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
+        [{ text: "OK", onPress: () => router.replace("/(creator)") }],
       );
     } catch (error: any) {
       Alert.alert("Error", error.response?.data?.error || error.message);
@@ -313,11 +313,48 @@ export default function VerificationApply() {
           </Text>
           <Button
             title="Return to Protocol"
-            onPress={() => router.replace("/(tabs)/profile")}
+            onPress={() => router.replace("/(creator)/profile")}
             variant="outline"
             textColor="white"
             className="w-full border-white/10"
           />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (verificationStatus === "verified") {
+    return (
+      <SafeAreaView className="flex-1 bg-black">
+        <View className="flex-1 px-6 items-center justify-center">
+          <View className="w-24 h-24 rounded-full bg-green-500/10 items-center justify-center mb-8">
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={48}
+              color="#22C55E"
+            />
+          </View>
+          <Text className="text-3xl font-black text-white italic text-center mb-4">
+            Identity<Text className="text-green-500">Verified</Text>
+          </Text>
+          <Text className="text-gray-400 font-bold text-center leading-6 mb-12">
+            Your creator identity has been successfully authenticated. You now
+            have full access to the marketplace and creator services.
+          </Text>
+          <Button
+            title="Go to Services"
+            onPress={() => router.replace("/(creator)/service")}
+            variant="brand"
+            className="w-full"
+          />
+          <TouchableOpacity
+            onPress={() => router.replace("/(creator)/profile")}
+            className="mt-6"
+          >
+            <Text className="text-gray-500 font-black text-[10px] uppercase tracking-widest">
+              Back to Profile
+            </Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
