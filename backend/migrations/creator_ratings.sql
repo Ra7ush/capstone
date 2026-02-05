@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS creator_ratings (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
   -- Each user can only rate a creator once per service (or once overall if service is NULL)
-  CONSTRAINT unique_user_creator_service_rating UNIQUE (user_id, creator_id, service_id)
+  CONSTRAINT unique_user_creator_service_rating UNIQUE NULLS NOT DISTINCT (user_id, creator_id, service_id)
 );
 
 -- Indexes for efficient queries

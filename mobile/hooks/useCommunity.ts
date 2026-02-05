@@ -118,6 +118,7 @@ export function useCommunity(communityId?: string) {
         limit: 10,
         community_id: communityId,
       }),
+    enabled: !!communityId,
     getNextPageParam: (lastPage) =>
       lastPage.pagination.hasMore ? lastPage.pagination.page + 1 : undefined,
     initialPageParam: 1,

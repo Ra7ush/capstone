@@ -110,8 +110,10 @@ export async function getDiscoverCommunities(req, res, next) {
     }
 
     if (search && search.trim() !== "") {
+      // Escape special PostgREST filter characters
+      const sanitizedSearch = search.trim().replace(/[%_.*,()]/g, "");
       query = query.or(
-        `name.ilike.%${search.trim()}%,description.ilike.%${search.trim()}%`,
+        `name.ilike.%${sanitizedSearch}%,description.ilike.%${sanitizedSearch}%`,
       );
     }
 

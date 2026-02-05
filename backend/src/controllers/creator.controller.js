@@ -480,7 +480,7 @@ export async function getRecentActivity(req, res, next) {
 
         // 2. Get recent comments on creator's posts
         const { data: comments, error: commentsError } = await supabase
-          .from("post_comments")
+          .from("comments")
           .select(
             `
             id,

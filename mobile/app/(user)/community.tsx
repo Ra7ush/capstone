@@ -72,16 +72,21 @@ export default function UserCommunity() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    if (activeCommunityId) {
-      await refetchFeed();
+    try {
+      if (activeCommunityId) {
+        await refetchFeed();
+      }
+    } finally {
+      setRefreshing(false);
     }
-    setRefreshing(false);
   };
 
   const handleJoin = async (id: string) => {
     try {
+      // TODO: Show success toast/feedback
       await joinCommunity(id);
     } catch (e) {
+      // TODO: Show error toast/feedback
       console.error(e);
     }
   };
@@ -119,14 +124,19 @@ export default function UserCommunity() {
           </View>
 
           {/* Joined Avatars */}
-          {joinedList.map((item) => (
+          {joinedList.map((item, index) => (
             <View
-              key={item.community?.id || item.community_id}
+              key={item.community?.id || item.community_id || `joined-${index}`}
               className="items-center mr-5"
             >
               <TouchableOpacity
-                onPress={() => setActiveCommunityId(item.community?.id || null)}
-                className={`w-14 h-14 rounded-2xl overflow-hidden border-2 ${activeCommunityId === item.community?.id ? "border-[#FF4D00]" : "border-gray-50"}`}
+                onPress={() => {
+                  const communityId = item.community?.id;
+                  if (communityId) {
+                    setActiveCommunityId(communityId);
+                  }
+                }}
+                className={`w-14 h-14 rounded-2xl overflow-hidden border-2 ${activeCommunityId === item.community?.id ? "border-[`#FF4D00`]" : "border-gray-50"}`}
               >
                 {item.community?.banner_url ? (
                   <Image
@@ -249,7 +259,7 @@ export default function UserCommunity() {
                             {item.name}
                           </Text>
                           <Text className="text-gray-400 font-black text-xs mt-1 uppercase tracking-tighter">
-                            by @{item.creator?.username}
+                            by @{item.creator?.username || "unknown"}
                           </Text>
                         </View>
                         <TouchableOpacity
@@ -344,8 +354,8 @@ export default function UserCommunity() {
                       {activeCommunity.name}
                     </Text>
                     <View className="flex-row items-center mt-3">
-                      <Text className="text-[#FF4D00] font-black text-base">
-                        @{activeCommunity.creator?.username}
+                      <Text className="text-[`#FF4D00`] font-black text-base">
+                        @{activeCommunity.creator?.username || "unknown"}
                       </Text>
                       <View className="w-1.5 h-1.5 rounded-full bg-gray-200 mx-4" />
                       <Text className="text-gray-400 font-bold text-base">
