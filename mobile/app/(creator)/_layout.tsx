@@ -6,8 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 /**
  * Tabs Layout
  *
- * Main tab navigation for authenticated users.
- * Add more Tab.Screen entries as you build out the app.
+ * Main tab navigation for creators.
  */
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();

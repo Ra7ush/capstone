@@ -1,5 +1,6 @@
 import supabase from "../config/db.js";
 import { logger } from "../config/logger.js";
+import { createNotification } from "./notification.controller.js";
 
 export const getConversations = async (req, res, next) => {
   try {
@@ -61,27 +62,29 @@ export const getConversations = async (req, res, next) => {
     }, {});
 
     // 3. Format data to return the "other" user, latest message, and unread count
-    const formattedConversations = conversations.map((conv) => {
-      const otherParticipant = conv.participants.find(
-        (p) => p.user.id !== userId,
-      );
+    const formattedConversations = conversations
+      .map((conv) => {
+        const otherParticipant = conv.participants.find(
+          (p) => p.user.id !== userId,
+        );
 
-      // Get the single latest message
-      const lastMessage =
-        conv.last_message && conv.last_message.length > 0
-          ? conv.last_message.sort(
-              (a, b) => new Date(b.created_at) - new Date(a.created_at),
-            )[0]
-          : null;
+        // Get the single latest message
+        const lastMessage =
+          conv.last_message && conv.last_message.length > 0
+            ? conv.last_message.sort(
+                (a, b) => new Date(b.created_at) - new Date(a.created_at),
+              )[0]
+            : null;
 
-      return {
-        id: conv.id,
-        last_message_at: conv.last_message_at,
-        other_user: otherParticipant?.user || null,
-        last_message: lastMessage,
-        unreadCount: unreadCountMap[conv.id] || 0,
-      };
-    });
+        return {
+          id: conv.id,
+          last_message_at: conv.last_message_at,
+          other_user: otherParticipant?.user || null,
+          last_message: lastMessage,
+          unreadCount: unreadCountMap[conv.id] || 0,
+        };
+      })
+      .filter((conv) => conv.last_message !== null);
 
     res.status(200).json({ success: true, data: formattedConversations });
   } catch (error) {
@@ -239,6 +242,22 @@ export const sendMessage = async (req, res, next) => {
           senderId,
           content: message.content,
         },
+      });
+
+      // Create a persistent notification for the message
+      const { data: senderUser } = await supabase
+        .from("users")
+        .select("username")
+        .eq("id", senderId)
+        .single();
+
+      await createNotification({
+        userId: participants.user_id,
+        actorId: senderId,
+        type: "message",
+        title: `${senderUser?.username || "Someone"} sent you a message`,
+        body: content?.substring(0, 100) || "Sent an image",
+        data: { conversation_id: actualConversationId },
       });
     }
 

@@ -114,12 +114,15 @@ export interface Service {
   price: number | null;
   thumbnail_url: string | null;
   status: ServiceStatus;
+  average_rating: number;
+  total_reviews: number;
   created_at: string;
   modules_count?: number;
   creator?: {
     id: string;
     username: string;
-    avatar_url?: string;
+    profile_image_url?: string | null;
+    avatar_url?: string | null;
   };
   modules?: CourseModule[];
   resources?: CourseResource[];
@@ -289,4 +292,90 @@ export interface PaginatedResponse<T> {
   page: number;
   limit: number;
   hasMore: boolean;
+}
+
+// ============================================
+// Notification Types
+// ============================================
+
+export type NotificationType =
+  | "follow"
+  | "message"
+  | "community_join"
+  | "purchase"
+  | "like"
+  | "comment"
+  | "mention"
+  | "verification"
+  | "system";
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  actor_id: string | null;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  data: Record<string, any>;
+  is_read: boolean;
+  created_at: string;
+  actor?: {
+    id: string;
+    username: string;
+    profile_image_url: string | null;
+  } | null;
+}
+
+export interface NotificationsResponse {
+  success: boolean;
+  data: Notification[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+export interface UnreadCountResponse {
+  success: boolean;
+  data: { count: number };
+}
+
+// ============================================
+// Review Types
+// ============================================
+
+export interface Review {
+  id: string;
+  service_id: string;
+  user_id: string;
+  rating: number;
+  review_text: string | null;
+  created_at: string;
+  updated_at: string;
+  user?: {
+    id: string;
+    username: string;
+    profile_image_url: string | null;
+  };
+}
+
+export interface ReviewStats {
+  average: number;
+  total: number;
+  distribution: Record<number, number>; // { 5: 10, 4: 5, 3: 2, 2: 1, 1: 0 }
+  percentages: Record<number, number>; // { 5: 56, 4: 28, ... }
+}
+
+export interface ReviewsResponse {
+  success: boolean;
+  data: Review[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+export interface ReviewStatsResponse {
+  success: boolean;
+  data: ReviewStats;
 }

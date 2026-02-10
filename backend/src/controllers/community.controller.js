@@ -1,6 +1,7 @@
 import supabase from "../config/db.js";
 import { getOrSet, invalidatePattern } from "../config/redis.js";
 import { logger } from "../config/logger.js";
+import { createNotification } from "./notification.controller.js";
 
 export async function createCommunity(req, res, next) {
   try {
@@ -117,19 +118,6 @@ export async function getDiscoverCommunities(req, res, next) {
       );
     }
 
-    // If userId is provided, exclude communities already joined
-    if (userId) {
-      const { data: joined } = await supabase
-        .from("community_members")
-        .select("community_id")
-        .eq("user_id", userId);
-
-      const joinedIds = joined?.map((j) => j.community_id) || [];
-      if (joinedIds.length > 0) {
-        query = query.not("id", "in", `(${joinedIds.join(",")})`);
-      }
-    }
-
     const { data, error } = await query
       .order("members_count", { ascending: false })
       .limit(20);
@@ -137,6 +125,24 @@ export async function getDiscoverCommunities(req, res, next) {
     if (error) {
       logger.error("Discover Communities Error:", error);
       throw error;
+    }
+
+    // Add is_joined flag to each community
+    if (userId && data) {
+      const { data: joined } = await supabase
+        .from("community_members")
+        .select("community_id")
+        .eq("user_id", userId);
+
+      const joinedIds = new Set(joined?.map((j) => j.community_id) || []);
+
+      data.forEach((community) => {
+        community.is_joined = joinedIds.has(community.id);
+      });
+    } else if (data) {
+      data.forEach((community) => {
+        community.is_joined = false;
+      });
     }
 
     return res.status(200).json({ success: true, data });
@@ -194,6 +200,34 @@ export async function joinCommunity(req, res, next) {
         return res.status(409).json({ success: false, error: data.message });
       }
       return res.status(400).json({ success: false, error: data.message });
+    }
+
+    // Notify the community creator that someone joined
+    try {
+      const { data: community } = await supabase
+        .from("communities")
+        .select("creator_id, name")
+        .eq("id", id)
+        .single();
+
+      const { data: joiner } = await supabase
+        .from("users")
+        .select("username")
+        .eq("id", userId)
+        .single();
+
+      if (community?.creator_id) {
+        await createNotification({
+          userId: community.creator_id,
+          actorId: userId,
+          type: "community_join",
+          title: `${joiner?.username || "Someone"} joined ${community.name}`,
+          data: { community_id: id },
+        });
+      }
+    } catch (notifErr) {
+      logger.error("Community join notification error:", notifErr);
+      // Non-fatal — join was successful
     }
 
     return res.status(200).json({ success: true, message: "Joined community" });
@@ -338,10 +372,20 @@ export async function getFeed(req, res, next) {
             { count: "exact" },
           );
 
-        const isValidCommunityId =
-          communityId && communityId !== "null" && communityId !== "undefined";
-        if (isValidCommunityId) {
-          query = query.eq("community_id", communityId);
+        if (communityId !== undefined && communityId !== null) {
+          const isValidId =
+            communityId !== "null" &&
+            communityId !== "undefined" &&
+            communityId !== "";
+          if (isValidId) {
+            query = query.eq("community_id", communityId);
+          } else {
+            // If community_id is provided but literally "null"/"undefined"/"",
+            // we should probably NOT fallback to global.
+            // Let's filter for posts with NO community_id (global posts) or return empty.
+            // For now, let's say these specific strings mean "global posts"
+            query = query.is("community_id", null);
+          }
         }
 
         const {
@@ -544,6 +588,34 @@ export async function likePost(req, res, next) {
     if (!rpcError) {
       logger.debug("RPC Success");
       const result = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+
+      // Notify the post owner about the like
+      try {
+        const { data: post } = await supabase
+          .from("posts")
+          .select("user_id")
+          .eq("id", post_id)
+          .single();
+
+        const { data: liker } = await supabase
+          .from("users")
+          .select("username")
+          .eq("id", user_id)
+          .single();
+
+        if (post?.user_id && post.user_id !== user_id) {
+          await createNotification({
+            userId: post.user_id,
+            actorId: user_id,
+            type: "like",
+            title: `${liker?.username || "Someone"} liked your post`,
+            data: { post_id },
+          });
+        }
+      } catch (notifErr) {
+        logger.error("Like notification error:", notifErr);
+      }
+
       return res.status(200).json({
         success: true,
         message: "Post liked (atomic)",
@@ -744,6 +816,62 @@ export async function addComment(req, res, next) {
 
     // Invalidate comments cache for this post
     await invalidatePattern(`comments:post:${id}`);
+
+    // Notify the post owner about the comment
+    try {
+      const { data: post } = await supabase
+        .from("posts")
+        .select("user_id")
+        .eq("id", id)
+        .single();
+
+      const { data: commenter } = await supabase
+        .from("users")
+        .select("username")
+        .eq("id", userId)
+        .single();
+
+      if (post?.user_id && post.user_id !== userId) {
+        await createNotification({
+          userId: post.user_id,
+          actorId: userId,
+          type: "comment",
+          title: `${commenter?.username || "Someone"} commented on your post`,
+          body: content.trim().substring(0, 100),
+          data: { post_id: id, comment_id: data.id },
+        });
+      }
+
+      // If it's a reply, also notify the parent comment author
+      if (parentId) {
+        const { data: parentComment } = await supabase
+          .from("comments")
+          .select("user_id")
+          .eq("id", parentId)
+          .single();
+
+        if (
+          parentComment?.user_id &&
+          parentComment.user_id !== userId &&
+          parentComment.user_id !== post?.user_id
+        ) {
+          await createNotification({
+            userId: parentComment.user_id,
+            actorId: userId,
+            type: "comment",
+            title: `${commenter?.username || "Someone"} replied to your comment`,
+            body: content.trim().substring(0, 100),
+            data: {
+              post_id: id,
+              comment_id: data.id,
+              parent_comment_id: parentId,
+            },
+          });
+        }
+      }
+    } catch (notifErr) {
+      logger.error("Comment notification error:", notifErr);
+    }
 
     return res.status(201).json({ success: true, data });
   } catch (error) {

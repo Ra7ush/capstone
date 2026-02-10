@@ -100,6 +100,20 @@ export function useMessaging() {
   };
 }
 
+export function useStartConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (receiverId: string) => {
+      const response = await messageApi.getOrCreateConversation(receiverId);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+}
+
 export function useChat(conversationId: string, userId?: string) {
   const queryClient = useQueryClient();
   const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);

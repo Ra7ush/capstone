@@ -1,6 +1,7 @@
 import supabase from "../config/db.js";
 import { logger } from "../config/logger.js";
 import { getOrSet } from "../config/redis.js";
+import { createNotification } from "./notification.controller.js";
 
 export async function followUser(req, res, next) {
   const { id: followingId } = req.params;
@@ -20,6 +21,22 @@ export async function followUser(req, res, next) {
     });
 
     if (error) throw error;
+
+    // Get follower's username for the notification
+    const { data: followerUser } = await supabase
+      .from("users")
+      .select("username")
+      .eq("id", followerId)
+      .single();
+
+    // Notify the person being followed
+    await createNotification({
+      userId: followingId,
+      actorId: followerId,
+      type: "follow",
+      title: `${followerUser?.username || "Someone"} started following you`,
+      data: { follower_id: followerId },
+    });
 
     res.status(200).json({
       success: true,

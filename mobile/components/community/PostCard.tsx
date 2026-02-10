@@ -23,6 +23,7 @@ interface PostCardProps {
   onFollow: (post: Post) => void;
   onOpenComments: (id: string) => void;
   onViewImages: (images: string[], index: number) => void;
+  onViewProfile?: (userId: string) => void;
   isLikeLoading?: boolean;
 }
 
@@ -94,6 +95,7 @@ export const PostCard = memo(
     onFollow,
     onOpenComments,
     onViewImages,
+    onViewProfile,
     isLikeLoading = false,
   }: PostCardProps) => {
     // Track current image index for dot indicator
@@ -159,7 +161,10 @@ export const PostCard = memo(
       <View className="mb-8 border-b border-gray-50 pb-8">
         {/* Post Header */}
         <View className="flex-row items-center justify-between mb-4">
-          <View className="flex-row items-center gap-3">
+          <TouchableOpacity
+            className="flex-row items-center gap-3"
+            onPress={() => onViewProfile?.(post.user_id)}
+          >
             <View className="w-10 h-10 rounded-full bg-blue-500 items-center justify-center overflow-hidden">
               {post.user?.profile_image_url ? (
                 <Image
@@ -200,7 +205,7 @@ export const PostCard = memo(
                 {formatTimeAgo(post.created_at)}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
           {post.user_id === currentUserId && (
             <TouchableOpacity onPress={() => onDelete(post.id)}>
               <Ionicons name="trash-outline" size={20} color="#EF4444" />

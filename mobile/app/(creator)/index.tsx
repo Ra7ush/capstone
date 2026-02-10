@@ -20,6 +20,7 @@ import {
 import { useAuthState } from "@/hooks/useAuthState";
 import { useUser } from "@/hooks/useProfile";
 import { useMyServices } from "@/hooks/useServices";
+import { useNotifications } from "@/hooks/useNotifications";
 import { useState } from "react";
 
 export default function Home() {
@@ -38,6 +39,7 @@ export default function Home() {
   const { data: myServicesResponse, refetch: refetchMyServices } =
     useMyServices();
   const { data: activities, refetch: refetchActivity } = useRecentActivity();
+  const { unreadCount } = useNotifications();
   const meta = myServicesResponse?.meta;
   const [refreshing, setRefreshing] = useState(false);
 
@@ -122,16 +124,18 @@ export default function Home() {
               </Text>
             </View>
 
-            {/* Profile Avatar */}
-            <TouchableOpacity className="w-12 h-12 rounded-full bg-gray-100 items-center justify-center">
-              {profile?.profile_image_url ? (
-                <View className="w-12 h-12 rounded-full bg-black items-center justify-center">
-                  <Text className="text-white font-bold text-lg">
-                    {profile.username?.charAt(0).toUpperCase() || "U"}
+            {/* Notification Icon */}
+            <TouchableOpacity
+              onPress={() => router.push("/notifications")}
+              className="w-12 h-12 rounded-full bg-gray-100 items-center justify-center"
+            >
+              <Ionicons name="notifications-outline" size={24} color="black" />
+              {unreadCount > 0 && (
+                <View className="absolute -top-1 -right-1 bg-red-500 rounded-full min-w-[18px] h-[18px] items-center justify-center px-1">
+                  <Text className="text-white text-[10px] font-bold">
+                    {unreadCount > 99 ? "99+" : unreadCount}
                   </Text>
                 </View>
-              ) : (
-                <Ionicons name="person" size={24} color="#9CA3AF" />
               )}
             </TouchableOpacity>
           </View>

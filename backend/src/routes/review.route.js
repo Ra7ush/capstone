@@ -1,0 +1,35 @@
+import { Router } from "express";
+import { auth } from "../middlewares/auth.js";
+import {
+  createReview,
+  updateReview,
+  deleteReview,
+  getServiceReviews,
+  getReviewStats,
+  getMyReview,
+} from "../controllers/review.controller.js";
+
+const router = Router();
+
+// All routes require authentication
+router.use(auth);
+
+// Create a review (POST /api/reviews)
+router.post("/", createReview);
+
+// Update own review (PUT /api/reviews/:id)
+router.put("/:id", updateReview);
+
+// Delete own review (DELETE /api/reviews/:id)
+router.delete("/:id", deleteReview);
+
+// Get reviews for a service (GET /api/reviews/service/:serviceId)
+router.get("/service/:serviceId", getServiceReviews);
+
+// Get review stats for a service (GET /api/reviews/service/:serviceId/stats)
+router.get("/service/:serviceId/stats", getReviewStats);
+
+// Get current user's review for a service (GET /api/reviews/service/:serviceId/mine)
+router.get("/service/:serviceId/mine", getMyReview);
+
+export default router;

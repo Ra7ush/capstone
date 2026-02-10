@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { serviceApi } from "@/lib/api";
-import type { Service, CourseModule, Lesson, CourseResource, MyServicesResponse, CreateServiceResponse } from "@/types";
+import { serviceApi, purchaseApi } from "@/lib/api";
+import type {
+  Service,
+  CourseModule,
+  Lesson,
+  CourseResource,
+  MyServicesResponse,
+  CreateServiceResponse,
+} from "@/types";
 import { supabase } from "@/lib/supabase";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { decode } from "base64-arraybuffer";
@@ -107,6 +114,9 @@ export async function uploadProfileImage(uri: string): Promise<string> {
 export const serviceKeys = {
   all: ["services"] as const,
   mine: () => [...serviceKeys.all, "mine"] as const,
+  browse: (category?: string, search?: string, creatorId?: string) =>
+    [...serviceKeys.all, "browse", { category, search, creatorId }] as const,
+  purchased: () => [...serviceKeys.all, "purchased"] as const,
   detail: (id: string) => [...serviceKeys.all, "detail", id] as const,
   modules: (serviceId: string) =>
     [...serviceKeys.all, "modules", serviceId] as const,
@@ -119,6 +129,83 @@ export const serviceKeys = {
 // ============================================
 // Service Hooks
 // ============================================
+
+/**
+ * Hook to fetch all published services for browsing
+ */
+export function useAllServices(
+  category?: string,
+  search?: string,
+  creatorId?: string,
+) {
+  return useQuery({
+    queryKey: serviceKeys.browse(category, search, creatorId),
+    queryFn: async () => {
+      const params: {
+        category?: string;
+        search?: string;
+        creator_id?: string;
+      } = {};
+      if (category && category !== "All") params.category = category;
+      if (search) params.search = search;
+      if (creatorId) params.creator_id = creatorId;
+      console.log("[useAllServices] Fetching with params:", params);
+      const response = await serviceApi.getAllServices(params);
+      console.log(
+        "[useAllServices] Raw API response:",
+        JSON.stringify(response, null, 2),
+      );
+      console.log("[useAllServices] response.data:", response.data);
+      console.log("[useAllServices] response.data type:", typeof response.data);
+      console.log("[useAllServices] Is array?:", Array.isArray(response.data));
+      return response.data as Service[];
+    },
+    staleTime: 1000 * 60 * 2, // 2 minutes
+  });
+}
+
+// Note: Purchase hooks now use backend API via purchaseApi
+
+/**
+ * Hook to get purchased service IDs from backend
+ */
+export function usePurchasedServiceIds() {
+  return useQuery({
+    queryKey: serviceKeys.purchased(),
+    queryFn: async () => {
+      const response = await purchaseApi.getPurchases();
+      // response.data is array of purchase objects
+      return response.data.map((p: any) => p.service_id) as string[];
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
+/**
+ * Hook to purchase a service
+ */
+export function usePurchaseService() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      serviceId,
+      price,
+    }: {
+      serviceId: string;
+      price: number;
+    }) => {
+      await purchaseApi.createPurchase({
+        service_id: serviceId,
+        amount: price,
+      });
+      return { success: true, serviceId };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: serviceKeys.purchased() });
+    },
+  });
+}
 
 /**
  * Hook to fetch current user's services
