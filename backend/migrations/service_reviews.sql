@@ -5,7 +5,7 @@
 
 -- Reviews table - users can review services they've purchased
 CREATE TABLE IF NOT EXISTS service_reviews (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   service_id UUID NOT NULL REFERENCES services(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS service_reviews (
   -- One review per user per service
   CONSTRAINT unique_user_service_review UNIQUE (user_id, service_id)
 );
+
+-- If table already exists, ensure id default uses built-in function (no extension needed)
+ALTER TABLE service_reviews ALTER COLUMN id SET DEFAULT gen_random_uuid();
 
 -- Indexes for efficient queries
 CREATE INDEX IF NOT EXISTS idx_service_reviews_service_id ON service_reviews(service_id);

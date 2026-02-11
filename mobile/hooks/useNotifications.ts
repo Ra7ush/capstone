@@ -34,7 +34,7 @@ export function useNotifications() {
 
   /** Paginated notification list */
   const notificationsQuery = useInfiniteQuery<NotificationsResponse>({
-    queryKey: [NOTIFICATIONS_KEY],
+    queryKey: [NOTIFICATIONS_KEY, userId],
     queryFn: ({ pageParam }) =>
       notificationApi.getNotifications({
         page: pageParam as number,
@@ -49,7 +49,7 @@ export function useNotifications() {
 
   /** Unread notification count (for badge) */
   const unreadCountQuery = useQuery({
-    queryKey: [UNREAD_COUNT_KEY],
+    queryKey: [UNREAD_COUNT_KEY, userId],
     queryFn: async () => {
       const res = await notificationApi.getUnreadCount();
       return res.data.count;

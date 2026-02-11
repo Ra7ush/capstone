@@ -4,19 +4,16 @@ import { createNotification } from "./notification.controller.js";
 
 export async function createPurchase(req, res, next) {
   try {
-    const { service_id, amount } = req.body;
+    const { service_id } = req.body;
     const user_id = req.user?.id;
-
     if (!user_id) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
-
-    if (!service_id || !amount) {
+    if (!service_id) {
       return res
         .status(400)
         .json({ success: false, error: "Missing required fields" });
     }
-
     // Check if already purchased
     const { data: existingPurchase } = await supabase
       .from("purchases")
@@ -24,50 +21,59 @@ export async function createPurchase(req, res, next) {
       .eq("user_id", user_id)
       .eq("service_id", service_id)
       .maybeSingle();
-
     if (existingPurchase) {
       return res
         .status(400)
         .json({ success: false, error: "Service already purchased" });
     }
-
+    // Fetch the service to get the real price server-side
+    const { data: service, error: serviceError } = await supabase
+      .from("services")
+      .select("price, creator_id, title, status")
+      .eq("id", service_id)
+      .single();
+    if (serviceError || !service) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Service not found" });
+    }
+    if (service.status !== "published") {
+      return res
+        .status(400)
+        .json({ success: false, error: "Service not available" });
+    }
+    // Use server-side price — never trust client-supplied amount
+    const verifiedAmount = service.price || 0;
     const { data, error } = await supabase
       .from("purchases")
       .insert({
         user_id,
         service_id,
-        amount,
-        status: "completed", // For now, assume immediate completion
+        amount: verifiedAmount,
+        status: "completed",
       })
       .select()
       .single();
-
     if (error) {
       throw error;
     }
 
     // Notify the service creator about the purchase
     try {
-      const { data: service } = await supabase
-        .from("services")
-        .select("creator_id, title")
-        .eq("id", service_id)
-        .single();
-
       const { data: buyer } = await supabase
         .from("users")
         .select("username")
         .eq("id", user_id)
         .single();
 
-      if (service?.creator_id) {
+      if (service.creator_id) {
         await createNotification({
           userId: service.creator_id,
           actorId: user_id,
           type: "purchase",
           title: `${buyer?.username || "Someone"} purchased ${service.title}`,
-          body: `Amount: $${amount}`,
-          data: { service_id, purchase_id: data.id, amount },
+          body: `Amount: $${verifiedAmount}`,
+          data: { service_id, purchase_id: data.id, amount: verifiedAmount },
         });
       }
     } catch (notifErr) {

@@ -53,11 +53,13 @@ export async function createNotification({
 
     // Broadcast via Supabase Realtime so the mobile app gets it instantly
     try {
-      await supabase.channel(`notifications:${userId}`).send({
+      const channel = supabase.channel(`notifications:${userId}`);
+      await channel.send({
         type: "broadcast",
         event: "new_notification",
         payload: notification,
       });
+      await supabase.removeChannel(channel);
     } catch (broadcastErr) {
       logger.error("Notification broadcast failed:", broadcastErr);
       // Non-fatal — notification is saved in DB

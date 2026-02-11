@@ -110,6 +110,12 @@ export default function UserCommunity() {
   const [coverImage, setCoverImage] = useState<string | null>(
     authUser?.profile?.cover_image_url || null,
   );
+  useEffect(() => {
+    if (authUser?.profile?.cover_image_url) {
+      setCoverImage(authUser.profile.cover_image_url);
+    }
+  }, [authUser?.profile?.cover_image_url]);
+
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [postsStats, setPostsStats] = useState({ total: 0, totalLikes: 0 });
@@ -409,9 +415,10 @@ export default function UserCommunity() {
       });
 
       if (!result.canceled && result.assets?.[0]?.uri) {
+        if (!authUser?.id) return;
         setIsUploadingCover(true);
         const uploadedUrl = await uploadImage(result.assets[0].uri);
-        await profileApi.updateProfile(authUser!.id, {
+        await profileApi.updateProfile(authUser.id, {
           cover_image_url: uploadedUrl,
         });
         setCoverImage(uploadedUrl);
@@ -435,9 +442,10 @@ export default function UserCommunity() {
       });
 
       if (!result.canceled && result.assets?.[0]?.uri) {
+        if (!authUser?.id) return;
         setIsUploadingProfile(true);
         const uploadedUrl = await uploadImage(result.assets[0].uri);
-        await profileApi.updateProfile(authUser!.id, {
+        await profileApi.updateProfile(authUser.id, {
           profile_image_url: uploadedUrl,
         });
         refreshAuth();

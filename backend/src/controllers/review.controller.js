@@ -126,7 +126,7 @@ export async function updateReview(req, res, next) {
         user:users!service_reviews_user_id_fkey(id, username, profile_image_url)
       `,
       )
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
     if (!data) {

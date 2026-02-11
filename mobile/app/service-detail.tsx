@@ -6,6 +6,7 @@ import {
   Image,
   ActivityIndicator,
   Modal,
+  Alert,
 } from "react-native";
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -97,6 +98,7 @@ export default function ServiceDetail() {
       setPurchaseSuccess(true);
     } catch (error) {
       console.error("Purchase failed:", error);
+      Alert.alert("Purchase Failed", "Something went wrong. Please try again.");
     }
   };
 

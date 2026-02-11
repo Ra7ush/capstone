@@ -20,6 +20,12 @@ import {
   joinCommunity,
   leaveCommunity,
   getCommunityById,
+  requestToJoin,
+  getJoinRequests,
+  handleJoinRequest,
+  cancelJoinRequest,
+  getJoinRequestStatus,
+  getPendingRequestsCount,
 } from "../controllers/community.controller.js";
 
 const router = Router();

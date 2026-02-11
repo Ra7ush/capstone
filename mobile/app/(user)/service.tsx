@@ -220,7 +220,7 @@ export default function UserServices() {
             onChangeText={(text) => {
               setSearch(text);
               // Debounce
-              setTimeout(() => setDebouncedSearch(text), 300);
+              // setTimeout(() => setDebouncedSearch(text), 300);
             }}
           />
           {search.length > 0 && (

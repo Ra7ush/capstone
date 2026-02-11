@@ -96,10 +96,10 @@ export async function getDiscoverCommunities(req, res, next) {
     const userId = req.user?.id;
     const { category, search } = req.query;
 
+    // Show both public and private communities in discover
     let query = supabase
       .from("communities")
-      .select("*, creator:users!communities_creator_id_fkey(id, username)")
-      .eq("privacy", "public");
+      .select("*, creator:users!communities_creator_id_fkey(id, username)");
 
     const isValidCategory =
       category &&
@@ -127,17 +127,27 @@ export async function getDiscoverCommunities(req, res, next) {
       throw error;
     }
 
-    // Add is_joined flag to each community
+    // Add is_joined flag and join_request_status to each community
     if (userId && data) {
       const { data: joined } = await supabase
         .from("community_members")
         .select("community_id")
         .eq("user_id", userId);
 
+      const { data: joinRequests } = await supabase
+        .from("community_join_requests")
+        .select("community_id, status")
+        .eq("user_id", userId)
+        .in("status", ["pending"]);
+
       const joinedIds = new Set(joined?.map((j) => j.community_id) || []);
+      const requestMap = new Map(
+        (joinRequests || []).map((r) => [r.community_id, r.status]),
+      );
 
       data.forEach((community) => {
         community.is_joined = joinedIds.has(community.id);
+        community.join_request_status = requestMap.get(community.id) || null;
       });
     } else if (data) {
       data.forEach((community) => {
@@ -182,6 +192,20 @@ export async function joinCommunity(req, res, next) {
 
     if (!userId) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    // Check if community is private — block direct join
+    const { data: communityCheck } = await supabase
+      .from("communities")
+      .select("privacy")
+      .eq("id", id)
+      .single();
+
+    if (communityCheck?.privacy === "private") {
+      return res.status(403).json({
+        success: false,
+        error: "This community is private. Send a join request instead.",
+      });
     }
 
     // Use atomic RPC function to handle insert + increment in a transaction
@@ -1172,3 +1196,352 @@ export async function editComment(req, res, next) {
 //     return res.status(500).json({ success: false, error: error.message });
 //   }
 // }
+
+// ============================================
+// Join Request Functions (Private Communities)
+// ============================================
+
+export async function requestToJoin(req, res, next) {
+  try {
+    const { id: communityId } = req.params;
+    const userId = req.user?.id;
+    const { message } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    // Verify community exists and is private
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id, privacy, creator_id, name")
+      .eq("id", communityId)
+      .single();
+
+    if (communityError || !community) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Community not found" });
+    }
+
+    if (community.privacy !== "private") {
+      return res.status(400).json({
+        success: false,
+        error: "This community is public. You can join directly.",
+      });
+    }
+
+    // Check if already a member
+    const { data: existingMember } = await supabase
+      .from("community_members")
+      .select("id")
+      .eq("community_id", communityId)
+      .eq("user_id", userId)
+      .single();
+
+    if (existingMember) {
+      return res.status(409).json({
+        success: false,
+        error: "You are already a member of this community",
+      });
+    }
+
+    // Check for existing pending request
+    const { data: existingRequest } = await supabase
+      .from("community_join_requests")
+      .select("id, status")
+      .eq("community_id", communityId)
+      .eq("user_id", userId)
+      .single();
+
+    if (existingRequest) {
+      if (existingRequest.status === "pending") {
+        return res.status(409).json({
+          success: false,
+          error: "You already have a pending request",
+        });
+      }
+      // If previously rejected, allow re-request by updating
+      if (existingRequest.status === "rejected") {
+        const { error: updateError } = await supabase
+          .from("community_join_requests")
+          .update({
+            status: "pending",
+            message: message || null,
+            reviewed_by: null,
+            reviewed_at: null,
+            created_at: new Date().toISOString(),
+          })
+          .eq("id", existingRequest.id);
+
+        if (updateError) throw updateError;
+      }
+    } else {
+      // Create new request
+      const { error: insertError } = await supabase
+        .from("community_join_requests")
+        .insert({
+          community_id: communityId,
+          user_id: userId,
+          message: message || null,
+        });
+
+      if (insertError) throw insertError;
+    }
+
+    // Notify the community creator
+    try {
+      const { data: requester } = await supabase
+        .from("users")
+        .select("username")
+        .eq("id", userId)
+        .single();
+
+      await createNotification({
+        userId: community.creator_id,
+        actorId: userId,
+        type: "join_request",
+        title: `${requester?.username || "Someone"} wants to join ${community.name}`,
+        data: { community_id: communityId },
+      });
+    } catch (notifErr) {
+      logger.error("Join request notification error:", notifErr);
+    }
+
+    return res
+      .status(201)
+      .json({ success: true, message: "Join request sent" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getJoinRequests(req, res, next) {
+  try {
+    const { id: communityId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    // Verify user is the community creator
+    const { data: community } = await supabase
+      .from("communities")
+      .select("creator_id")
+      .eq("id", communityId)
+      .single();
+
+    if (!community || community.creator_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: "Only the community creator can view join requests",
+      });
+    }
+
+    const { data, error } = await supabase
+      .from("community_join_requests")
+      .select("*, user:users!community_join_requests_user_id_fkey(id, username, avatar_url, full_name)")
+      .eq("community_id", communityId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, data: data || [] });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function handleJoinRequest(req, res, next) {
+  try {
+    const { requestId } = req.params;
+    const { action } = req.body; // 'approve' or 'reject'
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    if (!["approve", "reject"].includes(action)) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Action must be 'approve' or 'reject'" });
+    }
+
+    // Get the request and verify ownership
+    const { data: joinRequest, error: requestError } = await supabase
+      .from("community_join_requests")
+      .select("*, community:communities!community_join_requests_community_id_fkey(id, creator_id, name)")
+      .eq("id", requestId)
+      .single();
+
+    if (requestError || !joinRequest) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Join request not found" });
+    }
+
+    if (joinRequest.community?.creator_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: "Only the community creator can handle join requests",
+      });
+    }
+
+    if (joinRequest.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        error: `This request has already been ${joinRequest.status}`,
+      });
+    }
+
+    // Update the request status
+    const { error: updateError } = await supabase
+      .from("community_join_requests")
+      .update({
+        status: action === "approve" ? "approved" : "rejected",
+        reviewed_by: userId,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", requestId);
+
+    if (updateError) throw updateError;
+
+    // If approved, add user to community via atomic RPC
+    if (action === "approve") {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(
+        "join_community_atomic",
+        {
+          p_community_id: joinRequest.community_id,
+          p_user_id: joinRequest.user_id,
+        },
+      );
+
+      if (rpcError) throw rpcError;
+
+      if (rpcResult && !rpcResult.success) {
+        logger.error("Join community atomic failed:", rpcResult);
+      }
+    }
+
+    // Notify the requester
+    try {
+      const communityName = joinRequest.community?.name || "the community";
+      const notifTitle =
+        action === "approve"
+          ? `Your request to join ${communityName} was approved!`
+          : `Your request to join ${communityName} was declined`;
+
+      await createNotification({
+        userId: joinRequest.user_id,
+        actorId: userId,
+        type: "join_request",
+        title: notifTitle,
+        data: {
+          community_id: joinRequest.community_id,
+          action,
+        },
+      });
+    } catch (notifErr) {
+      logger.error("Join request response notification error:", notifErr);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Request ${action === "approve" ? "approved" : "rejected"}`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function cancelJoinRequest(req, res, next) {
+  try {
+    const { id: communityId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { error } = await supabase
+      .from("community_join_requests")
+      .delete()
+      .eq("community_id", communityId)
+      .eq("user_id", userId)
+      .eq("status", "pending");
+
+    if (error) throw error;
+
+    return res
+      .status(200)
+      .json({ success: true, message: "Join request cancelled" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getJoinRequestStatus(req, res, next) {
+  try {
+    const { id: communityId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { data, error } = await supabase
+      .from("community_join_requests")
+      .select("id, status, created_at")
+      .eq("community_id", communityId)
+      .eq("user_id", userId)
+      .single();
+
+    if (error && error.code !== "PGRST116") throw error;
+
+    return res.status(200).json({
+      success: true,
+      data: data || null,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getPendingRequestsCount(req, res, next) {
+  try {
+    const { id: communityId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    // Verify user is the community creator
+    const { data: community } = await supabase
+      .from("communities")
+      .select("creator_id")
+      .eq("id", communityId)
+      .single();
+
+    if (!community || community.creator_id !== userId) {
+      return res
+        .status(403)
+        .json({ success: false, error: "Unauthorized" });
+    }
+
+    const { count, error } = await supabase
+      .from("community_join_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("community_id", communityId)
+      .eq("status", "pending");
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, count: count || 0 });
+  } catch (error) {
+    next(error);
+  }
+}

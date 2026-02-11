@@ -5,7 +5,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import StarRating from "./StarRating";
 import type { Review } from "@/types";
 
@@ -32,6 +32,13 @@ export default function ReviewForm({
   const [reviewText, setReviewText] = useState(
     existingReview?.review_text || "",
   );
+
+  useEffect(() => {
+    if (existingReview) {
+      setRating(existingReview.rating);
+      setReviewText(existingReview.review_text || "");
+    }
+  }, [existingReview]);
 
   const isEditing = !!existingReview;
   const canSubmit = rating > 0 && !isSubmitting && !isDeleting;

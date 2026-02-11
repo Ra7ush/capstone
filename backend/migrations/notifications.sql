@@ -47,9 +47,11 @@ CREATE POLICY "Users can update own notifications"
   ON notifications FOR UPDATE
   USING (auth.uid() = user_id);
 
--- Service role can insert notifications (backend creates them)
+-- Only service role can insert notifications (backend creates them)
+DROP POLICY IF EXISTS "Service role can insert notifications" ON notifications;
 CREATE POLICY "Service role can insert notifications"
   ON notifications FOR INSERT
+  TO service_role
   WITH CHECK (true);
 
 -- Users can delete their own notifications
