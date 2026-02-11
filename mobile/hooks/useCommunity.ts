@@ -28,6 +28,7 @@ export type Community = {
   members_count: number;
   creator_id: string;
   created_at: string;
+  is_joined?: boolean;
   creator?: {
     id: string;
     username: string;
@@ -118,7 +119,8 @@ export function useCommunity(communityId?: string) {
         limit: 10,
         community_id: communityId,
       }),
-    enabled: !!communityId,
+    enabled:
+      communityId !== undefined && communityId !== null && communityId !== "",
     getNextPageParam: (lastPage) =>
       lastPage.pagination.hasMore ? lastPage.pagination.page + 1 : undefined,
     initialPageParam: 1,
@@ -634,9 +636,13 @@ export function useCommunity(communityId?: string) {
         );
       }
     },
-    onSettled: () => {
+    onSettled: (_, __, id) => {
       queryClient.invalidateQueries({ queryKey: ["communities", "joined"] });
       queryClient.invalidateQueries({ queryKey: ["communities", "discover"] });
+      // If id is provided (common in join/leave/create), invalidate those posts too
+      if (typeof id === "string") {
+        queryClient.invalidateQueries({ queryKey: ["posts", id] });
+      }
     },
   });
 
@@ -690,9 +696,13 @@ export function useCommunity(communityId?: string) {
         );
       }
     },
-    onSettled: () => {
+    onSettled: (_, __, id) => {
       queryClient.invalidateQueries({ queryKey: ["communities", "joined"] });
       queryClient.invalidateQueries({ queryKey: ["communities", "discover"] });
+      // If id is provided (common in join/leave/create), invalidate those posts too
+      if (typeof id === "string") {
+        queryClient.invalidateQueries({ queryKey: ["posts", id] });
+      }
     },
   });
 
@@ -723,9 +733,12 @@ export function useCommunity(communityId?: string) {
         );
       }
     },
-    onSettled: () => {
+    onSettled: (_, __, id) => {
       queryClient.invalidateQueries({ queryKey: ["communities", "joined"] });
       queryClient.invalidateQueries({ queryKey: ["communities", "discover"] });
+      if (typeof id === "string") {
+        queryClient.invalidateQueries({ queryKey: ["posts", id] });
+      }
     },
   });
 
@@ -802,6 +815,7 @@ export function useCommunity(communityId?: string) {
     addComment: addCommentMutation.mutateAsync,
     isAddingComment: addCommentMutation.isPending,
     deleteComment: deleteCommentMutation.mutateAsync,
+    isDeletingComment: deleteCommentMutation.isPending,
     likeComment: likeCommentMutation.mutateAsync,
     unlikeComment: unlikeCommentMutation.mutateAsync,
     editComment: editCommentMutation.mutateAsync,

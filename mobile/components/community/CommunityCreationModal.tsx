@@ -53,6 +53,7 @@ export const CommunityCreationModal = ({
     "Business",
     "Lifestyle",
     "Education",
+    "General",
   ];
 
   useEffect(() => {

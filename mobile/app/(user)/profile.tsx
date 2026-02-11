@@ -6,8 +6,6 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  Modal,
-  FlatList,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -15,10 +13,12 @@ import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { supabase } from "@/lib/supabase";
 import { useAuthState } from "@/hooks/useAuthState";
-import { useFollow } from "@/hooks/useFollow";
 import { useUser } from "@/hooks/useProfile";
 import { formatTimeAgo } from "@/lib/utils";
 import { RefreshControl } from "react-native";
+
+import { useJoinedCommunities } from "@/hooks/useCommunity";
+import { usePurchasedServiceIds } from "@/hooks/useServices";
 
 export default function Profile() {
   const router = useRouter();
@@ -33,23 +33,12 @@ export default function Profile() {
   // Prioritize hook data (dbUser) over auth state, but fallback to authUser
   const profile = dbUser || authUser?.profile;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalType, setModalType] = useState<"followers" | "following">(
-    "followers",
-  );
-
-  const { followers, following, isLoadingFollowers, isLoadingFollowing } =
-    useFollow(authUser?.id);
+  const { data: joinedCommunities } = useJoinedCommunities();
+  const { data: purchasedServiceIds } = usePurchasedServiceIds();
 
   const stats = {
-    followers: profile?.followers_count || 0,
-    following: profile?.following_count || 0,
-    rating: profile?.rating || 4.9,
-  };
-
-  const handleOpenModal = (type: "followers" | "following") => {
-    setModalType(type);
-    setModalVisible(true);
+    services: purchasedServiceIds?.length || 0,
+    communities: joinedCommunities?.data?.length || 0,
   };
 
   const handleLogout = async () => {
@@ -78,11 +67,15 @@ export default function Profile() {
     {
       title: "Account",
       items: [
-        {
-          icon: "person-outline",
-          label: "Personal Information",
-          route: "/profile-edit?mode=full",
-        },
+        ...(profile?.role === "creator"
+          ? [
+              {
+                icon: "person-outline",
+                label: "Personal Information",
+                route: "/profile-edit?mode=full",
+              },
+            ]
+          : []),
         {
           icon: "star-outline",
           label: "My Subscriptions",
@@ -170,7 +163,6 @@ export default function Profile() {
 
   return (
     <View className="flex-1 bg-white">
-      <Stack.Screen options={{ headerShown: false }} />
       <StatusBar style="dark" />
 
       <ScrollView
@@ -237,34 +229,20 @@ export default function Profile() {
 
           {/* Core Stats */}
           <View className="flex-row bg-white/5 rounded-3xl p-4 border border-white/10">
-            <TouchableOpacity
-              onPress={() => handleOpenModal("followers")}
-              className="flex-1 items-center border-r border-white/10"
-            >
+            <View className="flex-1 items-center border-r border-white/10">
               <Text className="text-white font-black text-lg italic">
-                {stats.followers}
+                {stats.services}
               </Text>
               <Text className="text-gray-500 text-[10px] font-black uppercase">
-                Followers
+                Services
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => handleOpenModal("following")}
-              className="flex-1 items-center border-r border-white/10"
-            >
-              <Text className="text-white font-black text-lg italic">
-                {stats.following}
-              </Text>
-              <Text className="text-gray-500 text-[10px] font-black uppercase">
-                Following
-              </Text>
-            </TouchableOpacity>
+            </View>
             <View className="flex-1 items-center">
               <Text className="text-white font-black text-lg italic">
-                {stats.rating}
+                {stats.communities}
               </Text>
               <Text className="text-gray-500 text-[10px] font-black uppercase">
-                Rating
+                Communities
               </Text>
             </View>
           </View>
@@ -332,86 +310,6 @@ export default function Profile() {
           </Text>
         </View>
       </ScrollView>
-
-      {/* Follow List Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-[3rem] h-[80%] p-6">
-            <View className="flex-row items-center justify-between mb-6">
-              <Text className="text-xl font-black italic uppercase tracking-tighter">
-                {modalType === "followers" ? "Followers" : "Following"}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setModalVisible(false)}
-                className="w-10 h-10 rounded-full bg-gray-50 items-center justify-center"
-              >
-                <Ionicons name="close" size={24} color="black" />
-              </TouchableOpacity>
-            </View>
-
-            {(
-              modalType === "followers"
-                ? isLoadingFollowers
-                : isLoadingFollowing
-            ) ? (
-              <ActivityIndicator
-                size="large"
-                color="#FF4D00"
-                className="mt-20"
-              />
-            ) : (
-              <FlatList
-                data={modalType === "followers" ? followers : following}
-                keyExtractor={(item) => item.id}
-                showsVerticalScrollIndicator={false}
-                renderItem={({ item }) => (
-                  <View className="flex-row items-center justify-between mb-4 bg-gray-50 p-4 rounded-3xl border border-gray-100">
-                    <View className="flex-row items-center gap-3">
-                      <View className="w-12 h-12 rounded-full bg-[#FF4D00] items-center justify-center">
-                        <Text className="text-white font-bold text-lg">
-                          {item.username?.[0]?.toUpperCase() || "U"}
-                        </Text>
-                      </View>
-                      <View>
-                        <Text className="text-black font-black text-sm">
-                          {item.username}
-                        </Text>
-                        <Text className="text-gray-400 text-xs font-bold uppercase">
-                          @{item.username}
-                        </Text>
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      className="bg-black px-4 py-2 rounded-full"
-                      onPress={() => {
-                        setModalVisible(false);
-                        // Future: navigate to their profile
-                      }}
-                    >
-                      <Text className="text-white text-xs font-black uppercase">
-                        View
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-                ListEmptyComponent={
-                  <View className="items-center mt-20">
-                    <Ionicons name="people-outline" size={48} color="#D1D5DB" />
-                    <Text className="text-gray-400 font-bold mt-4">
-                      No {modalType} yet
-                    </Text>
-                  </View>
-                }
-              />
-            )}
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

@@ -48,8 +48,8 @@ export function useCreatorProfile(creatorId: string) {
     queryFn: async () => {
       if (!creatorId) return null;
       try {
-        const data = await profileApi.getProfile(creatorId);
-        return data as UserProfile;
+        const data = await creatorApi.getProfile(creatorId);
+        return data as any; // Using any for now as the creator response might have slightly different structure
       } catch (error) {
         console.error("Error fetching creator profile:", error);
         throw error;

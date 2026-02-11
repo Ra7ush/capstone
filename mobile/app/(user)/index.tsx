@@ -12,6 +12,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/hooks/useProfile";
 import { useAuthState } from "@/hooks/useAuthState";
+import { useNotifications } from "@/hooks/useNotifications";
 
 /**
  * User Home Screen - Patreon-style Mockup
@@ -21,6 +22,7 @@ export default function UserHome() {
   const { user: authUser } = useAuthState();
   const { data: dbUser } = useUser();
   const profile = dbUser || authUser?.profile;
+  const { unreadCount } = useNotifications();
 
   const handleProfilePress = () => {
     router.push("/(user)/profile");
@@ -37,7 +39,6 @@ export default function UserHome() {
 
   return (
     <View className="flex-1 bg-white">
-      <Stack.Screen options={{ headerShown: false }} />
       <StatusBar style="dark" />
 
       {/* Header */}
@@ -46,18 +47,16 @@ export default function UserHome() {
           NEXUS
         </Text>
         <TouchableOpacity
-          onPress={handleProfilePress}
-          className="w-10 h-10 rounded-full bg-[#FF4D00] items-center justify-center border border-gray-100 overflow-hidden"
+          onPress={() => router.push("/notifications")}
+          className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center border border-gray-100"
         >
-          {profile?.avatar_url || profile?.profile_image_url ? (
-            <Image
-              source={{ uri: profile.avatar_url || profile.profile_image_url }}
-              className="w-full h-full"
-            />
-          ) : (
-            <Text className="text-white text-lg font-black italic">
-              {profile?.username?.[0]?.toUpperCase() || "N"}
-            </Text>
+          <Ionicons name="notifications-outline" size={24} color="black" />
+          {unreadCount > 0 && (
+            <View className="absolute -top-1 -right-1 bg-red-500 rounded-full min-w-[18px] h-[18px] items-center justify-center px-1">
+              <Text className="text-white text-[10px] font-bold">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </Text>
+            </View>
           )}
         </TouchableOpacity>
       </View>

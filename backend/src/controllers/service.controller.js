@@ -285,7 +285,8 @@ export async function publishService(req, res, next) {
     if (!isPro && publishedCount >= 1) {
       return res.status(403).json({
         success: false,
-        error: "Free plan limit reached. Upgrade to Pro plan to publish more services.",
+        error:
+          "Free plan limit reached. Upgrade to Pro plan to publish more services.",
         code: "FREE_PLAN_LIMIT",
       });
     }
@@ -335,7 +336,7 @@ export async function unpublishService(req, res, next) {
 
 export const getAllServices = async (req, res, next) => {
   try {
-    const { category, search } = req.query;
+    const { category, search, creator_id } = req.query;
 
     let query = supabase
       .from("services")
@@ -350,6 +351,7 @@ export const getAllServices = async (req, res, next) => {
 
     if (category) query = query.eq("category", category);
     if (search) query = query.ilike("title", `%${search}%`);
+    if (creator_id) query = query.eq("creator_id", creator_id);
 
     const { data, error } = await query.order("created_at", {
       ascending: false,

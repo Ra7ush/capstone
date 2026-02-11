@@ -1,6 +1,11 @@
 import axios from "axios";
 import { supabase } from "./supabase";
-import type { MyServicesResponse, CreateServiceResponse } from "@/types";
+import type {
+  MyServicesResponse,
+  CreateServiceResponse,
+  NotificationsResponse,
+  UnreadCountResponse,
+} from "@/types";
 
 /**
  * Axios instance with Supabase auth token interceptor
@@ -284,6 +289,38 @@ export const profileApi = {
   },
 };
 
+export const notificationApi = {
+  getNotifications: async ({
+    page = 1,
+    limit = 20,
+  }: { page?: number; limit?: number } = {}) => {
+    const response = await api.get("/api/notifications", {
+      params: { page, limit },
+    });
+    return response.data as NotificationsResponse;
+  },
+  getUnreadCount: async () => {
+    const response = await api.get("/api/notifications/unread-count");
+    return response.data as UnreadCountResponse;
+  },
+  markAsRead: async (notificationId: string) => {
+    const response = await api.put(`/api/notifications/${notificationId}/read`);
+    return response.data;
+  },
+  markAllAsRead: async () => {
+    const response = await api.put("/api/notifications/read-all");
+    return response.data;
+  },
+  deleteNotification: async (notificationId: string) => {
+    const response = await api.delete(`/api/notifications/${notificationId}`);
+    return response.data;
+  },
+  clearAll: async () => {
+    const response = await api.delete("/api/notifications");
+    return response.data;
+  },
+};
+
 export const blockApi = {
   getBlockedUsers: async () => {
     const response = await api.get("/api/block/list");
@@ -348,6 +385,14 @@ export const serviceApi = {
   getMyServices: async () => {
     const response = await api.get("/api/service/mine");
     return response.data as MyServicesResponse;
+  },
+  getAllServices: async (params?: {
+    category?: string;
+    search?: string;
+    creator_id?: string;
+  }) => {
+    const response = await api.get("/api/service", { params });
+    return response.data;
   },
   getServiceById: async (id: string) => {
     const response = await api.get(`/api/service/${id}`);
@@ -474,6 +519,56 @@ export const serviceApi = {
   },
   deleteResource: async (resourceId: string) => {
     const response = await api.delete(`/api/service/resources/${resourceId}`);
+    return response.data;
+  },
+};
+
+export const purchaseApi = {
+  createPurchase: async (data: { service_id: string; amount: number }) => {
+    const response = await api.post("/api/purchase", data);
+    return response.data;
+  },
+  getPurchases: async () => {
+    const response = await api.get("/api/purchase");
+    return response.data; // Returns { success: true, data: [...] }
+  },
+};
+
+export const reviewApi = {
+  createReview: async (data: {
+    service_id: string;
+    rating: number;
+    review_text?: string;
+  }) => {
+    const response = await api.post("/api/reviews", data);
+    return response.data;
+  },
+  updateReview: async (
+    id: string,
+    data: { rating?: number; review_text?: string },
+  ) => {
+    const response = await api.put(`/api/reviews/${id}`, data);
+    return response.data;
+  },
+  deleteReview: async (id: string) => {
+    const response = await api.delete(`/api/reviews/${id}`);
+    return response.data;
+  },
+  getServiceReviews: async (
+    serviceId: string,
+    params?: { page?: number; limit?: number; sort?: string },
+  ) => {
+    const response = await api.get(`/api/reviews/service/${serviceId}`, {
+      params,
+    });
+    return response.data;
+  },
+  getReviewStats: async (serviceId: string) => {
+    const response = await api.get(`/api/reviews/service/${serviceId}/stats`);
+    return response.data;
+  },
+  getMyReview: async (serviceId: string) => {
+    const response = await api.get(`/api/reviews/service/${serviceId}/mine`);
     return response.data;
   },
 };

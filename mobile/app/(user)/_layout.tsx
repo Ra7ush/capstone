@@ -3,9 +3,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /**
- * User Tabs Layout (Test Mode)
+ * User Tabs Layout
  *
- * Simplified to just Home tab for testing role-based routing.
+ * Main tab navigation for regular users.
  */
 export default function UserTabsLayout() {
   const insets = useSafeAreaInsets();
