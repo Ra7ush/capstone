@@ -17,11 +17,12 @@ import {
   useRecentActivity,
   ActivityItem,
 } from "@/hooks/useCreator";
+import { useJoinedCommunities } from "@/hooks/useCommunity";
 import { useAuthState } from "@/hooks/useAuthState";
 import { useUser } from "@/hooks/useProfile";
 import { useMyServices } from "@/hooks/useServices";
 import { useNotifications } from "@/hooks/useNotifications";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 export default function Home() {
   const router = useRouter();
@@ -39,12 +40,23 @@ export default function Home() {
   const { data: myServicesResponse, refetch: refetchMyServices } =
     useMyServices();
   const { data: activities, refetch: refetchActivity } = useRecentActivity();
+  const { data: joinedData, refetch: refetchJoinedCommunities } =
+    useJoinedCommunities();
   const { unreadCount } = useNotifications();
   const meta = myServicesResponse?.meta;
   const [refreshing, setRefreshing] = useState(false);
 
   // Prioritize hook data (dbUser) over auth state, but fallback to authUser
   const profile = dbUser || authUser?.profile;
+  const currentUserId = authUser?.id;
+
+  // Get creator's own community member count
+  const membersCount = useMemo(() => {
+    const myCommunity = joinedData?.data?.find(
+      (m: any) => m.community?.creator_id === currentUserId,
+    );
+    return myCommunity?.community?.members_count || 0;
+  }, [joinedData, currentUserId]);
 
   // Refreshing the page for the new data changes.
   const onRefresh = async () => {
@@ -56,6 +68,7 @@ export default function Home() {
         refetchStats(),
         refetchMyServices(),
         refetchActivity(),
+        refetchJoinedCommunities(),
       ]);
     } finally {
       setRefreshing(false);
@@ -301,10 +314,10 @@ export default function Home() {
                   <Ionicons name="people" size={20} color="#9CA3AF" />
                 </View>
                 <Text className="text-2xl font-black text-black">
-                  {stats?.followers_count?.toLocaleString() || "0"}
+                  {membersCount.toLocaleString()}
                 </Text>
                 <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
-                  Followers
+                  Community Members
                 </Text>
               </View>
 

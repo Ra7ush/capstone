@@ -13,7 +13,7 @@ import {
   Modal,
   FlatList,
 } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect, useCallback } from "react";
@@ -27,6 +27,8 @@ import {
   useCommunity,
   useJoinedCommunities,
   useCommunityDetail,
+  useRequestToJoin,
+  useCancelJoinRequest,
   Post,
 } from "@/hooks/useCommunity";
 import { useFollow } from "@/hooks/useFollow";
@@ -95,8 +97,11 @@ export default function UserCommunity() {
 
   const { follow, unfollow } = useFollow();
 
+  const requestToJoinMutation = useRequestToJoin();
+  const cancelJoinRequestMutation = useCancelJoinRequest();
+
   const { user: authUser, refresh: refreshAuth } = useAuthState();
-  // const router = useRouter(); // Not used in this component
+  const router = useRouter();
 
   // Posting State
   const [postContent, setPostContent] = useState("");
@@ -145,10 +150,48 @@ export default function UserCommunity() {
   const handleJoin = async (community: any) => {
     try {
       if (community.privacy === "private") {
-        Alert.alert(
-          "Request Sent",
-          `Your request to join "${community.name}" has been sent to the creator.`,
-        );
+        // If already pending, cancel the request
+        if (community.join_request_status === "pending") {
+          Alert.alert(
+            "Cancel Request",
+            `Cancel your join request for "${community.name}"?`,
+            [
+              { text: "No", style: "cancel" },
+              {
+                text: "Cancel Request",
+                style: "destructive",
+                onPress: async () => {
+                  try {
+                    await cancelJoinRequestMutation.mutateAsync(community.id);
+                  } catch (e: any) {
+                    Alert.alert(
+                      "Error",
+                      e?.response?.data?.error ||
+                        "Failed to cancel request. Try again.",
+                    );
+                  }
+                },
+              },
+            ],
+          );
+          return;
+        }
+        // Send join request
+        try {
+          await requestToJoinMutation.mutateAsync({
+            communityId: community.id,
+          });
+          Alert.alert(
+            "Request Sent",
+            `Your request to join "${community.name}" has been sent to the creator.`,
+          );
+        } catch (e: any) {
+          Alert.alert(
+            "Error",
+            e?.response?.data?.error ||
+              "Failed to send request. Please try again.",
+          );
+        }
         return;
       }
       await joinCommunity(community.id);
@@ -288,6 +331,12 @@ export default function UserCommunity() {
       Alert.alert("Error", "Please add some content or an image");
       return;
     }
+
+    if (!activeCommunityId) {
+      Alert.alert("Error", "Please select a community to post in");
+      return;
+    }
+
     try {
       const imageUrls = await Promise.all(
         selectedImages.map((uri) => uploadImage(uri)),
@@ -374,10 +423,10 @@ export default function UserCommunity() {
       return;
     }
 
-    // For now, navigate to their chat or just show an alert if profile screen doesn't exist
-    // Actually, let's just show an alert or do nothing if route is unknown
-    Alert.alert("Profile", "User profile viewing will be available soon!");
-    // router.push(`/profile/${userId}`);
+    router.push({
+      pathname: "/user-profile" as any,
+      params: { userId },
+    });
   };
 
   // Profile Tab Logic
@@ -966,16 +1015,30 @@ export default function UserCommunity() {
                           <TouchableOpacity
                             onPress={() => handleJoin(item)}
                             disabled={item.is_joined}
-                            className={`px-6 py-3 rounded-2xl shadow-lg ${item.is_joined ? "bg-gray-200" : "bg-black"}`}
+                            className={`px-6 py-3 rounded-2xl shadow-lg ${
+                              item.is_joined
+                                ? "bg-gray-200"
+                                : item.join_request_status === "pending"
+                                  ? "bg-amber-500"
+                                  : "bg-black"
+                            }`}
                           >
                             <Text
-                              className={`font-black text-xs uppercase tracking-widest ${item.is_joined ? "text-gray-500" : "text-white"}`}
+                              className={`font-black text-xs uppercase tracking-widest ${
+                                item.is_joined
+                                  ? "text-gray-500"
+                                  : item.join_request_status === "pending"
+                                    ? "text-white"
+                                    : "text-white"
+                              }`}
                             >
                               {item.is_joined
                                 ? "Joined"
-                                : item.privacy === "private"
-                                  ? "Request"
-                                  : "Join"}
+                                : item.join_request_status === "pending"
+                                  ? "Pending"
+                                  : item.privacy === "private"
+                                    ? "Request"
+                                    : "Join"}
                             </Text>
                           </TouchableOpacity>
                         </View>
@@ -1305,6 +1368,7 @@ export default function UserCommunity() {
                         onFollow={handleFollowAction}
                         onOpenComments={handleOpenComments}
                         onViewImages={handleViewImages}
+                        onViewProfile={handleViewProfile}
                         isLikeLoading={isPostLikePending(post.id)}
                       />
                     ))

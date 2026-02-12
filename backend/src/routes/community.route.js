@@ -38,6 +38,15 @@ router.get("/discover", getDiscoverCommunities);
 router.get("/joined", getJoinedCommunities);
 router.post("/:id/join", joinCommunity);
 router.delete("/:id/leave", leaveCommunity);
+
+// Join requests (private communities)
+router.post("/:id/request-join", requestToJoin);
+router.get("/:id/join-requests", getJoinRequests);
+router.get("/:id/join-request-status", getJoinRequestStatus);
+router.delete("/:id/cancel-request", cancelJoinRequest);
+router.get("/:id/pending-requests-count", getPendingRequestsCount);
+router.put("/join-requests/:requestId", handleJoinRequest);
+
 router.get("/:id", getCommunityById);
 
 // Post management

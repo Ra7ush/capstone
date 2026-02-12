@@ -73,6 +73,10 @@ export default function NotificationsScreen() {
             );
           }
           break;
+        case "join_request":
+          // Join request notifications are handled inline with approve/decline buttons
+          // No navigation needed
+          break;
         default:
           break;
       }

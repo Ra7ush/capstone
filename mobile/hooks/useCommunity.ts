@@ -29,6 +29,7 @@ export type Community = {
   creator_id: string;
   created_at: string;
   is_joined?: boolean;
+  join_request_status?: "pending" | "approved" | "rejected" | null;
   creator?: {
     id: string;
     username: string;
@@ -872,5 +873,88 @@ export function useCommunityDetail(communityId: string) {
     enabled: !!communityId,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // 30 minutes
+  });
+}
+
+// ============================================
+// Join Request Hooks (Private Communities)
+// ============================================
+
+export function useJoinRequests(communityId: string | undefined) {
+  return useQuery<{ success: boolean; data: any[] }>({
+    queryKey: ["communities", "join-requests", communityId],
+    queryFn: () => communityApi.getJoinRequests(communityId!),
+    enabled: !!communityId,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 10,
+  });
+}
+
+export function usePendingRequestsCount(communityId: string | undefined) {
+  return useQuery<{ success: boolean; count: number }>({
+    queryKey: ["communities", "pending-count", communityId],
+    queryFn: () => communityApi.getPendingRequestsCount(communityId!),
+    enabled: !!communityId,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 10,
+  });
+}
+
+export function useRequestToJoin() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      communityId,
+      message,
+    }: {
+      communityId: string;
+      message?: string;
+    }) => communityApi.requestToJoin(communityId, message),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["communities", "discover"] });
+    },
+  });
+}
+
+export function useCancelJoinRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (communityId: string) =>
+      communityApi.cancelJoinRequest(communityId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["communities", "discover"] });
+    },
+  });
+}
+
+export function useHandleJoinRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      requestId,
+      action,
+    }: {
+      requestId: string;
+      action: "approve" | "reject";
+    }) => communityApi.handleJoinRequest(requestId, action),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["communities", "join-requests"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["communities", "pending-count"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["communities", "discover"],
+      });
+      if (variables.action === "approve") {
+        queryClient.invalidateQueries({
+          queryKey: ["communities", "joined"],
+        });
+      }
+    },
   });
 }

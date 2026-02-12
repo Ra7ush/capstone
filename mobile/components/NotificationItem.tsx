@@ -1,5 +1,14 @@
-import { View, Text, TouchableOpacity, Image } from "react-native";
+import { useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useHandleJoinRequest } from "@/hooks/useCommunity";
 import type { Notification, NotificationType } from "@/types";
 
 interface NotificationItemProps {
@@ -26,6 +35,11 @@ const NOTIFICATION_CONFIG: Record<
     bgColor: "#ECFDF5",
   },
   system: { icon: "information-circle", color: "#6B7280", bgColor: "#F9FAFB" },
+  join_request: {
+    icon: "person-add",
+    color: "#FF4D00",
+    bgColor: "#FFF7ED",
+  },
 };
 
 /** Format relative time like "2m ago", "1h ago", "3d ago" */
@@ -51,6 +65,38 @@ export function NotificationItem({
 }: NotificationItemProps) {
   const config =
     NOTIFICATION_CONFIG[notification.type] || NOTIFICATION_CONFIG.system;
+
+  const isJoinRequest =
+    notification.type === "join_request" &&
+    notification.data?.request_id &&
+    !notification.data?.action; // Only show buttons if not already handled
+
+  const handleJoinRequestMutation = useHandleJoinRequest();
+  const [handled, setHandled] = useState<"approve" | "reject" | null>(null);
+  const [pendingAction, setPendingAction] = useState<
+    "approve" | "reject" | null
+  >(null);
+
+  const handleAction = async (action: "approve" | "reject") => {
+    const requestId = notification.data?.request_id;
+    if (!requestId) return;
+    setPendingAction(action);
+
+    try {
+      await handleJoinRequestMutation.mutateAsync({
+        requestId,
+        action,
+      });
+      setHandled(action);
+    } catch (e: any) {
+      Alert.alert(
+        "Error",
+        e?.response?.data?.error || `Failed to ${action} request`,
+      );
+    } finally {
+      setPendingAction(null);
+    }
+  };
 
   return (
     <TouchableOpacity
@@ -104,10 +150,68 @@ export function NotificationItem({
         <Text className="text-xs text-gray-400 mt-1">
           {formatRelativeTime(notification.created_at)}
         </Text>
+
+        {/* Approve / Decline buttons for join requests */}
+        {isJoinRequest && !handled && (
+          <View className="flex-row gap-2 mt-2.5">
+            <TouchableOpacity
+              onPress={() => handleAction("approve")}
+              disabled={pendingAction !== null}
+              className="flex-row items-center bg-black px-4 py-2 rounded-xl"
+              style={{ opacity: handleJoinRequestMutation.isPending ? 0.5 : 1 }}
+            >
+              {pendingAction === "approve" ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark" size={14} color="white" />
+                  <Text className="text-white font-bold text-xs ml-1">
+                    Approve
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => handleAction("reject")}
+              disabled={pendingAction !== null}
+              className="flex-row items-center bg-gray-100 px-4 py-2 rounded-xl"
+              style={{ opacity: handleJoinRequestMutation.isPending ? 0.5 : 1 }}
+            >
+              {pendingAction === "reject" ? (
+                <ActivityIndicator size="small" color="#6B7280" />
+              ) : (
+                <>
+                  <Ionicons name="close" size={14} color="#6B7280" />
+                  <Text className="text-gray-600 font-bold text-xs ml-1">
+                    Decline
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Show result after action */}
+        {handled && (
+          <View className="flex-row items-center mt-2.5">
+            <Ionicons
+              name={handled === "approve" ? "checkmark-circle" : "close-circle"}
+              size={16}
+              color={handled === "approve" ? "#10B981" : "#EF4444"}
+            />
+            <Text
+              className={`text-xs font-semibold ml-1 ${
+                handled === "approve" ? "text-emerald-600" : "text-red-500"
+              }`}
+            >
+              {handled === "approve" ? "Approved" : "Declined"}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Unread indicator */}
-      {!notification.is_read && (
+      {!notification.is_read && !isJoinRequest && (
         <View className="w-2.5 h-2.5 rounded-full bg-blue-500 mt-2 ml-2" />
       )}
     </TouchableOpacity>

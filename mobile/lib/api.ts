@@ -158,6 +158,48 @@ export const communityApi = {
     const response = await api.delete(`/api/community/${communityId}/leave`);
     return response.data;
   },
+  // Join Requests (Private Communities)
+  requestToJoin: async (communityId: string, message?: string) => {
+    const response = await api.post(
+      `/api/community/${communityId}/request-join`,
+      { message },
+    );
+    return response.data;
+  },
+  getJoinRequests: async (communityId: string) => {
+    const response = await api.get(
+      `/api/community/${communityId}/join-requests`,
+    );
+    return response.data;
+  },
+  getJoinRequestStatus: async (communityId: string) => {
+    const response = await api.get(
+      `/api/community/${communityId}/join-request-status`,
+    );
+    return response.data;
+  },
+  handleJoinRequest: async (
+    requestId: string,
+    action: "approve" | "reject",
+  ) => {
+    const response = await api.put(
+      `/api/community/join-requests/${requestId}`,
+      { action },
+    );
+    return response.data;
+  },
+  cancelJoinRequest: async (communityId: string) => {
+    const response = await api.delete(
+      `/api/community/${communityId}/cancel-request`,
+    );
+    return response.data;
+  },
+  getPendingRequestsCount: async (communityId: string) => {
+    const response = await api.get(
+      `/api/community/${communityId}/pending-requests-count`,
+    );
+    return response.data;
+  },
   // Legacy/Other
   likePost: async (postId: string) => {
     const response = await api.post(`/api/community/posts/${postId}/like`);
@@ -246,6 +288,10 @@ export const followApi = {
   getFollowing: async (userId: string) => {
     const response = await api.get(`/api/follow/following/${userId}`);
     return response.data.data;
+  },
+  checkFollowing: async (userId: string) => {
+    const response = await api.get(`/api/follow/check/${userId}`);
+    return response.data as { success: boolean; isFollowing: boolean };
   },
 };
 
@@ -569,6 +615,18 @@ export const reviewApi = {
   },
   getMyReview: async (serviceId: string) => {
     const response = await api.get(`/api/reviews/service/${serviceId}/mine`);
+    return response.data;
+  },
+};
+
+export const reportApi = {
+  submitReport: async (data: {
+    reported_user_id: string;
+    content_type: string;
+    reason: string;
+    description?: string;
+  }) => {
+    const response = await api.post("/api/moderation/report", data);
     return response.data;
   },
 };
