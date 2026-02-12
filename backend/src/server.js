@@ -16,6 +16,7 @@ import purchaseRouter from "./routes/purchase.route.js";
 import blockRouter from "./routes/block.route.js";
 import notificationRouter from "./routes/notification.route.js";
 import reviewRouter from "./routes/review.route.js";
+import reportRouter from "./routes/report.route.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
 import { setupRealtimeSync } from "./config/realtimeSync.js";
 import { logger } from "./config/logger.js";
@@ -23,7 +24,6 @@ import { logger } from "./config/logger.js";
 const __dirname = path.resolve();
 
 const app = express();
-await redisClient.connect();
 
 // Start real-time cache invalidation listener
 // setupRealtimeSync();
@@ -129,6 +129,9 @@ app.use("/api/notifications", notificationRouter);
 
 // Review routes
 app.use("/api/reviews", reviewRouter);
+
+// Report/Moderation routes
+app.use("/api/moderation", reportRouter);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

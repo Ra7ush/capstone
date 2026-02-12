@@ -307,7 +307,8 @@ export type NotificationType =
   | "comment"
   | "mention"
   | "verification"
-  | "system";
+  | "system"
+  | "join_request";
 
 export interface Notification {
   id: string;
@@ -378,4 +379,27 @@ export interface ReviewsResponse {
 export interface ReviewStatsResponse {
   success: boolean;
   data: ReviewStats;
+}
+
+// ============================================
+// Join Request Types
+// ============================================
+
+export type JoinRequestStatus = "pending" | "approved" | "rejected";
+
+export interface JoinRequest {
+  id: string;
+  community_id: string;
+  user_id: string;
+  status: JoinRequestStatus;
+  message: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  user?: {
+    id: string;
+    username: string;
+    avatar_url: string | null;
+    full_name: string | null;
+  };
 }

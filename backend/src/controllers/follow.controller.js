@@ -133,3 +133,27 @@ export async function getFollowing(req, res, next) {
     next(error);
   }
 }
+
+export async function checkFollowing(req, res, next) {
+  const { id: targetUserId } = req.params;
+  const currentUserId = req.user.id;
+
+  try {
+    const { data, error } = await supabase
+      .from("follows")
+      .select("id")
+      .eq("follower_id", currentUserId)
+      .eq("following_id", targetUserId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.status(200).json({
+      success: true,
+      isFollowing: !!data,
+    });
+  } catch (error) {
+    logger.error("Check following error:", error);
+    next(error);
+  }
+}

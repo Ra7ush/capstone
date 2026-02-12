@@ -23,6 +23,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useCommunity,
   useJoinedCommunities,
+  useCommunityDetail,
+  useJoinRequests,
+  usePendingRequestsCount,
+  useHandleJoinRequest,
   Community as CommunityType,
   Post,
 } from "../../hooks/useCommunity";
@@ -91,6 +95,73 @@ export const CommunityDashboard = ({
   } = useCommunity(selectedCommunity?.id);
 
   const { follow, unfollow } = useFollow();
+
+  // Fetch fresh community detail for live members_count
+  const { data: communityDetailData } = useCommunityDetail(
+    selectedCommunity?.id || "",
+  );
+  const liveMembersCount =
+    communityDetailData?.data?.members_count ??
+    selectedCommunity?.members_count ??
+    0;
+
+  // Join request hooks (for private community creators)
+  const isPrivateCommunity =
+    isCreator && selectedCommunity?.privacy === "private";
+  const { data: pendingCountData } = usePendingRequestsCount(
+    isPrivateCommunity ? selectedCommunity?.id : undefined,
+  );
+  const { data: joinRequestsData, isLoading: isLoadingRequests } =
+    useJoinRequests(
+      isPrivateCommunity && activeTab === "Requests"
+        ? selectedCommunity?.id
+        : undefined,
+    );
+  const handleJoinRequestMutation = useHandleJoinRequest();
+
+  const pendingCount = pendingCountData?.count || 0;
+  const joinRequests = joinRequestsData?.data || [];
+
+  const handleApproveRequest = async (requestId: string) => {
+    try {
+      await handleJoinRequestMutation.mutateAsync({
+        requestId,
+        action: "approve",
+      });
+    } catch (e: any) {
+      Alert.alert(
+        "Error",
+        e?.response?.data?.error || "Failed to approve request",
+      );
+    }
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    Alert.alert(
+      "Reject Request",
+      "Are you sure you want to reject this request?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reject",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await handleJoinRequestMutation.mutateAsync({
+                requestId,
+                action: "reject",
+              });
+            } catch (e: any) {
+              Alert.alert(
+                "Error",
+                e?.response?.data?.error || "Failed to reject request",
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -241,6 +312,11 @@ export const CommunityDashboard = ({
       return;
     }
 
+    if (!selectedCommunity?.id) {
+      Alert.alert("Error", "Please select a community to post in");
+      return;
+    }
+
     try {
       const imageUrls = await Promise.all(
         selectedImages.map((uri) => uploadImage(uri)),
@@ -248,7 +324,7 @@ export const CommunityDashboard = ({
 
       await createPost({
         content: postContent,
-        community_id: selectedCommunity?.id || null,
+        community_id: selectedCommunity.id,
         images: imageUrls,
       });
 
@@ -320,6 +396,13 @@ export const CommunityDashboard = ({
     setViewingImages(images);
     setViewingIndex(index);
   };
+  const handleViewProfile = (userId: string) => {
+    if (userId === currentUserId) return;
+    router.push({
+      pathname: "/user-profile" as any,
+      params: { userId },
+    });
+  };
 
   return (
     <View className="flex-1 bg-white">
@@ -376,6 +459,7 @@ export const CommunityDashboard = ({
               onFollow={handleFollowAction}
               onOpenComments={handleOpenComments}
               onViewImages={handleViewImages}
+              onViewProfile={handleViewProfile}
               isLikeLoading={isPostLikePending(item.id)}
             />
           </View>
@@ -400,10 +484,13 @@ export const CommunityDashboard = ({
             activeTab={activeTab}
             onTabChange={setActiveTab}
             user={user}
+            isPrivateCommunity={isPrivateCommunity}
+            pendingCount={pendingCount}
+            membersCount={liveMembersCount}
           />
         }
         ListFooterComponent={
-          activeTab === "Profile" ? (
+          activeTab === "Profile" && user ? (
             <ProfileTab
               user={user}
               uploadImage={uploadImage}
@@ -419,7 +506,7 @@ export const CommunityDashboard = ({
                   params: {
                     userId: currentUserId,
                     mode: "bio",
-                    initialData: JSON.stringify(user.profile),
+                    initialData: JSON.stringify(user?.profile),
                   },
                 });
               }}
@@ -433,6 +520,14 @@ export const CommunityDashboard = ({
               currentUserImage={
                 user?.profile?.profile_image_url || user?.profile_image_url
               }
+            />
+          ) : activeTab === "Requests" ? (
+            <RequestsTab
+              joinRequests={joinRequests}
+              isLoading={isLoadingRequests}
+              onApprove={handleApproveRequest}
+              onReject={handleRejectRequest}
+              isPending={handleJoinRequestMutation.isPending}
             />
           ) : isFetchingNextPage ? (
             <ActivityIndicator size="small" color="#000" className="py-4" />
@@ -462,6 +557,127 @@ export const CommunityDashboard = ({
 
 // --- Sub-components for stability ---
 
+// Requests Tab - Join request management for private community creators
+const RequestsTab = ({
+  joinRequests,
+  isLoading,
+  onApprove,
+  onReject,
+  isPending,
+}: {
+  joinRequests: any[];
+  isLoading: boolean;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  isPending: boolean;
+}) => {
+  if (isLoading) {
+    return (
+      <View className="items-center py-16">
+        <ActivityIndicator size="large" color="#000" />
+        <Text className="text-gray-400 font-medium mt-4">
+          Loading requests...
+        </Text>
+      </View>
+    );
+  }
+
+  if (joinRequests.length === 0) {
+    return (
+      <View className="items-center py-16 px-6">
+        <Ionicons name="people-outline" size={56} color="#D1D5DB" />
+        <Text className="text-gray-800 font-bold text-lg mt-4">
+          No Pending Requests
+        </Text>
+        <Text className="text-gray-400 text-center mt-2 leading-5">
+          When someone requests to join your private community, they will appear
+          here.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="px-6 pb-8">
+      <Text className="text-gray-500 font-bold text-xs uppercase tracking-widest mb-6">
+        {joinRequests.length} pending request
+        {joinRequests.length !== 1 ? "s" : ""}
+      </Text>
+      {joinRequests.map((request: any) => (
+        <View
+          key={request.id}
+          className="bg-white rounded-3xl p-5 mb-4 border border-gray-100"
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 2,
+            elevation: 1,
+          }}
+        >
+          <View className="flex-row items-center">
+            <View className="w-12 h-12 rounded-full bg-gray-100 items-center justify-center overflow-hidden">
+              {request.user?.avatar_url ? (
+                <Image
+                  source={{ uri: request.user.avatar_url }}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text className="text-gray-500 font-black text-lg">
+                  {(request.user?.username || "?")[0].toUpperCase()}
+                </Text>
+              )}
+            </View>
+            <View className="flex-1 ml-4">
+              <Text className="text-black font-bold text-base">
+                {request.user?.full_name || request.user?.username || "User"}
+              </Text>
+              <Text className="text-gray-400 text-xs mt-0.5">
+                @{request.user?.username || "unknown"} •{" "}
+                {new Date(request.created_at).toLocaleDateString()}
+              </Text>
+            </View>
+          </View>
+
+          {request.message && (
+            <View className="mt-3 bg-gray-50 rounded-2xl p-3">
+              <Text className="text-gray-600 text-sm leading-5">
+                {request.message}
+              </Text>
+            </View>
+          )}
+
+          <View className="flex-row gap-3 mt-4">
+            <TouchableOpacity
+              onPress={() => onApprove(request.id)}
+              disabled={isPending}
+              className={`flex-1 bg-black py-3 rounded-2xl items-center ${isPending ? "opacity-50" : ""}`}
+            >
+              {isPending ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text className="text-white font-black text-xs uppercase tracking-widest">
+                  Approve
+                </Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => onReject(request.id)}
+              disabled={isPending}
+              className={`flex-1 bg-gray-100 py-3 rounded-2xl items-center ${isPending ? "opacity-50" : ""}`}
+            >
+              <Text className="text-gray-600 font-black text-xs uppercase tracking-widest">
+                Decline
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+};
+
 interface DashboardHeaderProps {
   isCreator: boolean;
   hasCreatorCommunity: boolean;
@@ -479,6 +695,9 @@ interface DashboardHeaderProps {
   activeTab: string;
   onTabChange: (t: string) => void;
   user: any;
+  isPrivateCommunity: boolean;
+  pendingCount: number;
+  membersCount: number;
 }
 
 const DashboardHeader = React.memo(
@@ -499,112 +718,141 @@ const DashboardHeader = React.memo(
     activeTab,
     onTabChange,
     user,
-  }: DashboardHeaderProps) => (
-    <>
-      <View className="px-6 pt-16 pb-4 bg-white border-b border-gray-100 flex-row items-center justify-between">
-        <Text className="text-2xl font-black text-black">Community</Text>
-        <View className="flex-row gap-4">
-          {isCreator && !hasCreatorCommunity && (
-            <TouchableOpacity
-              onPress={onOpenCreateCommunity}
-              className="w-10 h-10 rounded-full bg-gray-50 items-center justify-center"
-            >
-              <Ionicons name="add" size={24} color="black" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+    isPrivateCommunity,
+    pendingCount,
+    membersCount,
+  }: DashboardHeaderProps) => {
+    const tabs = isPrivateCommunity
+      ? ["For You", "Requests", "Profile"]
+      : ["For You", "Profile"];
 
-      <View className="px-6 py-6 border-b border-gray-100">
-        <View className="flex-row gap-4">
-          <View className="w-12 h-12 rounded-full bg-[#FF4D00] items-center justify-center overflow-hidden">
-            {user?.profile?.profile_image_url || user?.profile_image_url ? (
-              <Image
-                source={{
-                  uri:
-                    user?.profile?.profile_image_url || user?.profile_image_url,
-                }}
-                className="w-full h-full"
-                resizeMode="cover"
-              />
-            ) : (
-              <Text className="text-white font-black text-lg">Me</Text>
+    return (
+      <>
+        <View className="px-6 pt-16 pb-4 bg-white border-b border-gray-100 flex-row items-center justify-between">
+          <View>
+            <Text className="text-2xl font-black text-black">Community</Text>
+          </View>
+          <View className="flex-row gap-2 items-center">
+            {isCreator && selectedCommunity && (
+              <View className="bg-gray-100 px-3 py-1.5 rounded-full flex-row items-center">
+                <Ionicons name="people" size={12} color="#4B5563" />
+                <Text className="text-xs font-bold text-gray-600 ml-1.5">
+                  {membersCount} {membersCount === 1 ? "Member" : "Members"}
+                </Text>
+              </View>
+            )}
+            {isCreator && !hasCreatorCommunity && (
+              <TouchableOpacity
+                onPress={onOpenCreateCommunity}
+                className="w-10 h-10 rounded-full bg-gray-50 items-center justify-center"
+              >
+                <Ionicons name="add" size={24} color="black" />
+              </TouchableOpacity>
             )}
           </View>
-          <View className="flex-1 bg-gray-50 rounded-3xl p-4 border border-gray-100">
-            <TextInput
-              placeholder="What's happening in your world?"
-              placeholderTextColor="#9CA3AF"
-              multiline
-              className="text-black font-medium leading-5 mb-4 max-h-32 utf8-fix"
-              value={postContent}
-              onChangeText={onPostContentChange}
-            />
+        </View>
 
-            {selectedImages.length > 0 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                className="mb-4"
-              >
-                {selectedImages.map((uri: string, index: number) => (
-                  <View key={index} className="mr-3 relative">
-                    <Image
-                      source={{ uri }}
-                      className="w-40 h-40 rounded-xl"
-                      resizeMode="cover"
-                    />
-                    <TouchableOpacity
-                      className="absolute top-2 right-2 bg-black/50 p-1 rounded-full"
-                      onPress={() => onRemoveImage(index)}
-                    >
-                      <Ionicons name="close" size={16} color="white" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
+        <View className="px-6 py-6 border-b border-gray-100">
+          <View className="flex-row gap-4">
+            <View className="w-12 h-12 rounded-full bg-[#FF4D00] items-center justify-center overflow-hidden">
+              {user?.profile?.profile_image_url || user?.profile_image_url ? (
+                <Image
+                  source={{
+                    uri:
+                      user?.profile?.profile_image_url ||
+                      user?.profile_image_url,
+                  }}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text className="text-white font-black text-lg">Me</Text>
+              )}
+            </View>
+            <View className="flex-1 bg-gray-50 rounded-3xl p-4 border border-gray-100">
+              <TextInput
+                placeholder="What's happening in your world?"
+                placeholderTextColor="#9CA3AF"
+                multiline
+                className="text-black font-medium leading-5 mb-4 max-h-32 utf8-fix"
+                value={postContent}
+                onChangeText={onPostContentChange}
+              />
 
-            <View className="flex-row items-center justify-between">
-              <TouchableOpacity onPress={onPickImage}>
-                <Ionicons name="image-outline" size={24} color="#6B7280" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                className={`bg-black px-6 py-2 rounded-full ${isCreatingPost ? "opacity-50" : ""}`}
-                onPress={onPost}
-                disabled={isCreatingPost}
-              >
-                {isCreatingPost ? (
-                  <ActivityIndicator color="white" size="small" />
-                ) : (
-                  <Text className="text-white font-black text-sm">Post</Text>
-                )}
-              </TouchableOpacity>
+              {selectedImages.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  className="mb-4"
+                >
+                  {selectedImages.map((uri: string, index: number) => (
+                    <View key={index} className="mr-3 relative">
+                      <Image
+                        source={{ uri }}
+                        className="w-40 h-40 rounded-xl"
+                        resizeMode="cover"
+                      />
+                      <TouchableOpacity
+                        className="absolute top-2 right-2 bg-black/50 p-1 rounded-full"
+                        onPress={() => onRemoveImage(index)}
+                      >
+                        <Ionicons name="close" size={16} color="white" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+
+              <View className="flex-row items-center justify-between">
+                <TouchableOpacity onPress={onPickImage}>
+                  <Ionicons name="image-outline" size={24} color="#6B7280" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className={`bg-black px-6 py-2 rounded-full ${isCreatingPost ? "opacity-50" : ""}`}
+                  onPress={onPost}
+                  disabled={isCreatingPost}
+                >
+                  {isCreatingPost ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <Text className="text-white font-black text-sm">Post</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
-      </View>
 
-      <View className="flex-row border-b border-gray-100 mb-8">
-        {["For You", "Profile"].map((tab: string) => (
-          <TouchableOpacity
-            key={tab}
-            onPress={() => onTabChange(tab)}
-            className="flex-1 py-4 items-center"
-          >
-            <Text
-              className={`font-black uppercase tracking-widest text-[10px] ${activeTab === tab ? "text-black" : "text-gray-400"}`}
+        <View className="flex-row border-b border-gray-100 mb-8">
+          {tabs.map((tab: string) => (
+            <TouchableOpacity
+              key={tab}
+              onPress={() => onTabChange(tab)}
+              className="flex-1 py-4 items-center"
             >
-              {tab}
-            </Text>
-            {activeTab === tab && (
-              <View className="absolute bottom-0 w-12 h-1 bg-black rounded-full" />
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
-    </>
-  ),
+              <View className="flex-row items-center">
+                <Text
+                  className={`font-black uppercase tracking-widest text-[10px] ${activeTab === tab ? "text-black" : "text-gray-400"}`}
+                >
+                  {tab}
+                </Text>
+                {tab === "Requests" && pendingCount > 0 && (
+                  <View className="ml-1.5 bg-[#FF4D00] rounded-full min-w-[18px] h-[18px] items-center justify-center px-1">
+                    <Text className="text-white font-black text-[9px]">
+                      {pendingCount > 99 ? "99+" : pendingCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {activeTab === tab && (
+                <View className="absolute bottom-0 w-12 h-1 bg-black rounded-full" />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </>
+    );
+  },
 );
 
 DashboardHeader.displayName = "DashboardHeader";
@@ -629,7 +877,7 @@ const ProfileTab = ({
   currentUserImage,
 }: any) => {
   const [coverImage, setCoverImage] = useState<string | null>(
-    user.profile?.cover_image_url || null,
+    user?.profile?.cover_image_url || null,
   );
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [posts, setPosts] = useState<any[]>([]);
@@ -645,16 +893,16 @@ const ProfileTab = ({
 
   const router = useRouter();
 
-  const initials = user.profile?.full_name
+  const initials = user?.profile?.full_name
     ? user.profile.full_name
         .split(" ")
         .map((n: string) => n[0])
         .join("")
         .toUpperCase()
-    : user.profile?.username?.charAt(0).toUpperCase() || "U";
+    : user?.profile?.username?.charAt(0).toUpperCase() || "U";
 
-  const isVerified = user.verification_status === "verified";
-  const category = user.profile?.category || "Creator";
+  const isVerified = user?.verification_status === "verified";
+  const category = user?.profile?.category || "Creator";
 
   // Fetch user posts
   useEffect(() => {
@@ -669,11 +917,11 @@ const ProfileTab = ({
           user_id: userId,
           user: {
             id: userId,
-            username: user.profile?.username || user.username,
-            full_name: user.profile?.full_name || user.full_name,
+            username: user?.profile?.username || user?.username,
+            full_name: user?.profile?.full_name || user?.full_name,
             profile_image_url:
-              user.profile?.profile_image_url || user.profile_image_url,
-            verification_status: user.verification_status,
+              user?.profile?.profile_image_url || user?.profile_image_url,
+            verification_status: user?.verification_status,
           },
         }));
         setPosts(enrichedPosts);
@@ -808,6 +1056,8 @@ const ProfileTab = ({
     ]);
   };
 
+  if (!user) return null;
+
   return (
     <View className="pb-20">
       {/* Full Screen Post Feed Modal */}
@@ -927,7 +1177,7 @@ const ProfileTab = ({
               activeOpacity={0.8}
               className="w-20 h-20 rounded-full bg-white border-4 border-white shadow-lg overflow-hidden items-center justify-center relative"
             >
-              {user.profile?.profile_image_url ? (
+              {user?.profile?.profile_image_url ? (
                 <Image
                   source={{ uri: user.profile.profile_image_url }}
                   className="w-full h-full"

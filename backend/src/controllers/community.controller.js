@@ -337,6 +337,46 @@ export async function createPost(req, res, next) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
+    // community_id is required — every post belongs to a community
+    if (!community_id) {
+      return res.status(400).json({
+        success: false,
+        error: "community_id is required. Posts must belong to a community.",
+      });
+    }
+
+    // Verify user is a member of this community (or is the creator)
+    const { data: membership } = await supabase
+      .from("community_members")
+      .select("user_id")
+      .eq("community_id", community_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    logger.debug(
+      `[createPost] Membership check: userId=${userId}, communityId=${community_id}, found=${!!membership}`,
+    );
+
+    if (!membership) {
+      // Check if user is the community creator
+      const { data: community } = await supabase
+        .from("communities")
+        .select("creator_id")
+        .eq("id", community_id)
+        .maybeSingle();
+
+      logger.debug(
+        `[createPost] Creator check: creator_id=${community?.creator_id}, userId=${userId}, match=${community?.creator_id === userId}`,
+      );
+
+      if (!community || community.creator_id !== userId) {
+        return res.status(403).json({
+          success: false,
+          error: "You must be a member of this community to post.",
+        });
+      }
+    }
+
     const imagesArray = images
       ? Array.isArray(images)
         ? images
@@ -349,7 +389,7 @@ export async function createPost(req, res, next) {
         content,
         images: imagesArray,
         user_id: userId,
-        community_id: community_id || null,
+        community_id,
       })
       .select(
         "*, user:users(id, username, email, profile_image_url, creators(bio))",
@@ -384,7 +424,7 @@ export async function getFeed(req, res, next) {
     const to = from + limit - 1;
     const communityId = req.query.community_id;
 
-    const cacheKey = `feed:${communityId || "global"}:page:${page}:limit:${limit}`;
+    const cacheKey = `feed:${communityId || "joined"}:user:${userId}:page:${page}:limit:${limit}`;
 
     const { posts, count } = await getOrSet(
       cacheKey,
@@ -396,20 +436,36 @@ export async function getFeed(req, res, next) {
             { count: "exact" },
           );
 
-        if (communityId !== undefined && communityId !== null) {
-          const isValidId =
-            communityId !== "null" &&
-            communityId !== "undefined" &&
-            communityId !== "";
-          if (isValidId) {
-            query = query.eq("community_id", communityId);
+        const isValidId =
+          communityId !== undefined &&
+          communityId !== null &&
+          communityId !== "null" &&
+          communityId !== "undefined" &&
+          communityId !== "";
+
+        if (isValidId) {
+          // Specific community feed — only show posts from this community
+          query = query.eq("community_id", communityId);
+        } else if (userId) {
+          // No specific community — show posts only from user's joined communities
+          const { data: memberCommunities } = await supabase
+            .from("community_members")
+            .select("community_id")
+            .eq("user_id", userId);
+
+          const joinedCommunityIds = (memberCommunities || []).map(
+            (m) => m.community_id,
+          );
+
+          if (joinedCommunityIds.length > 0) {
+            query = query.in("community_id", joinedCommunityIds);
           } else {
-            // If community_id is provided but literally "null"/"undefined"/"",
-            // we should probably NOT fallback to global.
-            // Let's filter for posts with NO community_id (global posts) or return empty.
-            // For now, let's say these specific strings mean "global posts"
-            query = query.is("community_id", null);
+            // User hasn't joined any communities — return empty
+            return { posts: [], count: 0 };
           }
+        } else {
+          // No user, no community — return empty
+          return { posts: [], count: 0 };
         }
 
         const {
@@ -1247,7 +1303,7 @@ export async function requestToJoin(req, res, next) {
     }
 
     // Check for existing pending request
-    const { data: existingRequest } = await supabase
+    let { data: existingRequest } = await supabase
       .from("community_join_requests")
       .select("id, status")
       .eq("community_id", communityId)
@@ -1278,15 +1334,32 @@ export async function requestToJoin(req, res, next) {
       }
     } else {
       // Create new request
-      const { error: insertError } = await supabase
+      const { data: newRequest, error: insertError } = await supabase
         .from("community_join_requests")
         .insert({
           community_id: communityId,
           user_id: userId,
           message: message || null,
-        });
+        })
+        .select("id")
+        .single();
 
       if (insertError) throw insertError;
+      // Store for notification
+      if (newRequest)
+        existingRequest = { id: newRequest.id, status: "pending" };
+    }
+
+    // Get the request ID for the notification
+    let requestId = existingRequest?.id;
+    if (!requestId) {
+      const { data: latestReq } = await supabase
+        .from("community_join_requests")
+        .select("id")
+        .eq("community_id", communityId)
+        .eq("user_id", userId)
+        .single();
+      requestId = latestReq?.id;
     }
 
     // Notify the community creator
@@ -1302,7 +1375,7 @@ export async function requestToJoin(req, res, next) {
         actorId: userId,
         type: "join_request",
         title: `${requester?.username || "Someone"} wants to join ${community.name}`,
-        data: { community_id: communityId },
+        data: { community_id: communityId, request_id: requestId },
       });
     } catch (notifErr) {
       logger.error("Join request notification error:", notifErr);
@@ -1341,7 +1414,9 @@ export async function getJoinRequests(req, res, next) {
 
     const { data, error } = await supabase
       .from("community_join_requests")
-      .select("*, user:users!community_join_requests_user_id_fkey(id, username, avatar_url, full_name)")
+      .select(
+        "*, user:users!community_join_requests_user_id_fkey(id, username, avatar_url, full_name)",
+      )
       .eq("community_id", communityId)
       .eq("status", "pending")
       .order("created_at", { ascending: true });
@@ -1365,15 +1440,18 @@ export async function handleJoinRequest(req, res, next) {
     }
 
     if (!["approve", "reject"].includes(action)) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Action must be 'approve' or 'reject'" });
+      return res.status(400).json({
+        success: false,
+        error: "Action must be 'approve' or 'reject'",
+      });
     }
 
     // Get the request and verify ownership
     const { data: joinRequest, error: requestError } = await supabase
       .from("community_join_requests")
-      .select("*, community:communities!community_join_requests_community_id_fkey(id, creator_id, name)")
+      .select(
+        "*, community:communities!community_join_requests_community_id_fkey(id, creator_id, name)",
+      )
       .eq("id", requestId)
       .single();
 
@@ -1527,9 +1605,7 @@ export async function getPendingRequestsCount(req, res, next) {
       .single();
 
     if (!community || community.creator_id !== userId) {
-      return res
-        .status(403)
-        .json({ success: false, error: "Unauthorized" });
+      return res.status(403).json({ success: false, error: "Unauthorized" });
     }
 
     const { count, error } = await supabase
