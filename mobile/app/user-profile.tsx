@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -58,6 +58,9 @@ export default function UserProfile() {
   );
   const [viewingImages, setViewingImages] = useState<string[] | null>(null);
   const [viewingIndex, setViewingIndex] = useState(0);
+
+  // Refs
+  const postsModalFlatListRef = useRef<FlatList>(null);
 
   // Followers/Following modal
   const [socialModalVisible, setSocialModalVisible] = useState(false);
@@ -640,14 +643,31 @@ export default function UserProfile() {
           </View>
 
           <FlatList
+            ref={postsModalFlatListRef}
             data={posts}
             keyExtractor={(item) => item.id}
-            initialScrollIndex={selectedPostIndex ?? 0}
-            getItemLayout={(_, index) => ({
-              length: 400,
-              offset: 400 * index,
-              index,
-            })}
+            onLayout={() => {
+              // Scroll to selected post after layout is complete
+              if (selectedPostIndex !== null && selectedPostIndex > 0) {
+                setTimeout(() => {
+                  postsModalFlatListRef.current?.scrollToIndex({
+                    index: selectedPostIndex,
+                    animated: false,
+                    viewPosition: 0,
+                  });
+                }, 100);
+              }
+            }}
+            onScrollToIndexFailed={(info) => {
+              // Fallback: scroll to offset if index fails
+              const wait = new Promise((resolve) => setTimeout(resolve, 100));
+              wait.then(() => {
+                postsModalFlatListRef.current?.scrollToOffset({
+                  offset: info.averageItemLength * info.index,
+                  animated: false,
+                });
+              });
+            }}
             renderItem={({ item }) => (
               <View className="border-b border-gray-100 pb-4 mb-4">
                 {/* Post header */}

@@ -5,6 +5,7 @@ import { logger } from "../config/logger.js";
 /**
  * Block a user
  */
+//TODO: we have to finsh the block feature fully like that when the user is blocked it must be not conn
 export async function blockUser(req, res, next) {
   try {
     const { userId } = req.params;

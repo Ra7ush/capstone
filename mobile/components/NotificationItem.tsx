@@ -73,10 +73,14 @@ export function NotificationItem({
 
   const handleJoinRequestMutation = useHandleJoinRequest();
   const [handled, setHandled] = useState<"approve" | "reject" | null>(null);
+  const [pendingAction, setPendingAction] = useState<
+    "approve" | "reject" | null
+  >(null);
 
   const handleAction = async (action: "approve" | "reject") => {
     const requestId = notification.data?.request_id;
     if (!requestId) return;
+    setPendingAction(action);
 
     try {
       await handleJoinRequestMutation.mutateAsync({
@@ -89,6 +93,8 @@ export function NotificationItem({
         "Error",
         e?.response?.data?.error || `Failed to ${action} request`,
       );
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -150,11 +156,11 @@ export function NotificationItem({
           <View className="flex-row gap-2 mt-2.5">
             <TouchableOpacity
               onPress={() => handleAction("approve")}
-              disabled={handleJoinRequestMutation.isPending}
+              disabled={pendingAction !== null}
               className="flex-row items-center bg-black px-4 py-2 rounded-xl"
               style={{ opacity: handleJoinRequestMutation.isPending ? 0.5 : 1 }}
             >
-              {handleJoinRequestMutation.isPending ? (
+              {pendingAction === "approve" ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
                 <>
@@ -167,14 +173,20 @@ export function NotificationItem({
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => handleAction("reject")}
-              disabled={handleJoinRequestMutation.isPending}
+              disabled={pendingAction !== null}
               className="flex-row items-center bg-gray-100 px-4 py-2 rounded-xl"
               style={{ opacity: handleJoinRequestMutation.isPending ? 0.5 : 1 }}
             >
-              <Ionicons name="close" size={14} color="#6B7280" />
-              <Text className="text-gray-600 font-bold text-xs ml-1">
-                Decline
-              </Text>
+              {pendingAction === "reject" ? (
+                <ActivityIndicator size="small" color="#6B7280" />
+              ) : (
+                <>
+                  <Ionicons name="close" size={14} color="#6B7280" />
+                  <Text className="text-gray-600 font-bold text-xs ml-1">
+                    Decline
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         )}
