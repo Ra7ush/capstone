@@ -16,7 +16,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useRef, useEffect } from "react";
-import { useChat, useMessaging } from "../../hooks/useMessaging";
+import { useChat, useMessageRequests } from "../../hooks/useMessaging";
 import { useAuthState } from "../../hooks/useAuthState";
 import { usePresence } from "../../hooks/usePresence";
 import * as ImagePicker from "expo-image-picker";
@@ -35,6 +35,8 @@ export default function ChatDetail() {
   const {
     messages,
     otherUser,
+    requestStatus,
+    initiatedBy,
     loadingMessages,
     loadingMore,
     loadMore,
@@ -47,6 +49,8 @@ export default function ChatDetail() {
     updateMessage,
     deleteMessage,
   } = useChat(id!, user?.id);
+  const { acceptRequest, declineRequest, isAccepting, isDeclining } =
+    useMessageRequests();
   const [editingMessage, setEditingMessage] = useState<any>(null);
   const [isMeTyping, setIsMeTyping] = useState(false);
   const inputRef = useRef<TextInput>(null);
@@ -61,6 +65,12 @@ export default function ChatDetail() {
   const [viewerIndex, setViewerIndex] = useState(0);
 
   const isOnline = otherUser?.id ? isUserOnline(otherUser.id) : false;
+
+  // Message request state
+  const isPendingRequest = requestStatus === "pending";
+  const isRecipient = isPendingRequest && initiatedBy !== user?.id;
+  const isRequester = isPendingRequest && initiatedBy === user?.id;
+  const canSendMessage = !isPendingRequest || isRequester;
 
   // Send typing status when message changes
   useEffect(() => {
@@ -507,87 +517,160 @@ export default function ChatDetail() {
         }}
       />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-      >
-        {selectedImages.length > 0 && (
-          <View className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex-row">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {selectedImages.map((uri, index) => (
-                <View key={index} className="mr-3 relative">
-                  <Image
-                    source={{ uri }}
-                    className="w-20 h-20 rounded-xl border border-gray-200"
-                    style={{ width: 80, height: 80 }}
-                    resizeMode="cover"
-                  />
-                  <TouchableOpacity
-                    onPress={() =>
-                      setSelectedImages((prev) =>
-                        prev.filter((_, i) => i !== index),
-                      )
-                    }
-                    className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm border border-gray-100"
-                  >
-                    <Ionicons name="close-circle" size={20} color="#6B7280" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        <View className="px-4 pt-2 pb-8 bg-white border-t border-gray-100 flex-row items-end">
-          <TouchableOpacity
-            onPress={pickImages}
-            className="w-10 h-10 items-center justify-center mr-2 bg-gray-50 rounded-full"
-          >
-            <Ionicons name="image" size={22} color="#4B5563" />
-          </TouchableOpacity>
-
-          <View className="flex-1 bg-gray-50 rounded-3xl px-4 py-2 flex-row items-center border border-gray-100">
-            <TextInput
-              ref={inputRef}
-              placeholder={
-                editingMessage ? "Edit message..." : "Type a message..."
-              }
-              placeholderTextColor="#9CA3AF"
-              value={message}
-              onChangeText={setMessage}
-              className="flex-1 text-black font-medium text-sm py-2 max-h-32"
-              multiline
-            />
-            {editingMessage && (
-              <TouchableOpacity onPress={handleCancelEdit} className="ml-2">
-                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+      {/* Message Request Banner - shown to recipient of pending request */}
+      {isRecipient && (
+        <View className="border-t border-gray-100 bg-white">
+          <View className="px-5 py-4">
+            <View className="bg-blue-50 rounded-2xl px-4 py-3 mb-3">
+              <Text className="text-blue-800 text-[13px] font-semibold leading-5 text-center">
+                <Text className="font-black">
+                  @{otherUser?.username || "This user"}
+                </Text>{" "}
+                wants to send you a message. Accept to start chatting or decline
+                to remove this request.
+              </Text>
+            </View>
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                className="flex-1 bg-black rounded-xl py-3.5 items-center"
+                onPress={async () => {
+                  try {
+                    await acceptRequest(id!);
+                  } catch (error) {
+                    console.error("Error accepting request:", error);
+                  }
+                }}
+                disabled={isAccepting || isDeclining}
+              >
+                {isAccepting ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text className="text-white font-black text-[15px]">
+                    Accept
+                  </Text>
+                )}
               </TouchableOpacity>
-            )}
+              <TouchableOpacity
+                className="flex-1 bg-gray-100 rounded-xl py-3.5 items-center"
+                onPress={async () => {
+                  try {
+                    await declineRequest(id!);
+                    router.back();
+                  } catch (error) {
+                    console.error("Error declining request:", error);
+                  }
+                }}
+                disabled={isAccepting || isDeclining}
+              >
+                {isDeclining ? (
+                  <ActivityIndicator size="small" color="black" />
+                ) : (
+                  <Text className="text-black font-black text-[15px]">
+                    Decline
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-
-          <TouchableOpacity
-            onPress={handleSend}
-            disabled={!message.trim() && selectedImages.length === 0}
-            className={`ml-3 w-12 h-12 rounded-full items-center justify-center ${
-              !message.trim() && selectedImages.length === 0
-                ? "bg-gray-100"
-                : "bg-black"
-            }`}
-          >
-            <Ionicons
-              name={editingMessage ? "checkmark-circle" : "send"}
-              size={editingMessage ? 28 : 20}
-              color={
-                !message.trim() && selectedImages.length === 0
-                  ? "#9CA3AF"
-                  : editingMessage
-                    ? "#FF4D00"
-                    : "white"
-              }
-            />
-          </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      )}
+
+      {/* Pending request notice for the sender */}
+      {isRequester && (
+        <View className="border-t border-gray-100 bg-white px-5 py-3">
+          <Text className="text-gray-400 text-[12px] font-semibold text-center">
+            <Ionicons name="time-outline" size={12} color="#9CA3AF" /> Your
+            message request is pending. You can send messages, but{" "}
+            <Text className="font-black">@{otherUser?.username || "they"}</Text>{" "}
+            must accept before they can reply.
+          </Text>
+        </View>
+      )}
+
+      {/* Regular message input - shown when conversation is accepted or user is the requester */}
+      {canSendMessage && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        >
+          {selectedImages.length > 0 && (
+            <View className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex-row">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {selectedImages.map((uri, index) => (
+                  <View key={index} className="mr-3 relative">
+                    <Image
+                      source={{ uri }}
+                      className="w-20 h-20 rounded-xl border border-gray-200"
+                      style={{ width: 80, height: 80 }}
+                      resizeMode="cover"
+                    />
+                    <TouchableOpacity
+                      onPress={() =>
+                        setSelectedImages((prev) =>
+                          prev.filter((_, i) => i !== index),
+                        )
+                      }
+                      className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm border border-gray-100"
+                    >
+                      <Ionicons name="close-circle" size={20} color="#6B7280" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          <View className="px-4 pt-2 pb-8 bg-white border-t border-gray-100 flex-row items-end">
+            <TouchableOpacity
+              onPress={pickImages}
+              className="w-10 h-10 items-center justify-center mr-2 bg-gray-50 rounded-full"
+            >
+              <Ionicons name="image" size={22} color="#4B5563" />
+            </TouchableOpacity>
+
+            <View className="flex-1 bg-gray-50 rounded-3xl px-4 py-2 flex-row items-center border border-gray-100">
+              <TextInput
+                ref={inputRef}
+                placeholder={
+                  editingMessage ? "Edit message..." : "Type a message..."
+                }
+                placeholderTextColor="#9CA3AF"
+                value={message}
+                onChangeText={setMessage}
+                className="flex-1 text-black font-medium text-sm py-2 max-h-32"
+                multiline
+              />
+              {editingMessage && (
+                <TouchableOpacity onPress={handleCancelEdit} className="ml-2">
+                  <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity
+              onPress={handleSend}
+              disabled={!message.trim() && selectedImages.length === 0}
+              className={`ml-3 w-12 h-12 rounded-full items-center justify-center ${
+                !message.trim() && selectedImages.length === 0
+                  ? "bg-gray-100"
+                  : "bg-black"
+              }`}
+            >
+              <Ionicons
+                name={editingMessage ? "checkmark-circle" : "send"}
+                size={editingMessage ? 28 : 20}
+                color={
+                  !message.trim() && selectedImages.length === 0
+                    ? "#9CA3AF"
+                    : editingMessage
+                      ? "#FF4D00"
+                      : "white"
+                }
+              />
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      )}
 
       <ImageViewer
         visible={viewerVisible}

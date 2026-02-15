@@ -134,6 +134,54 @@ export async function getFollowing(req, res, next) {
   }
 }
 
+export async function getSuggestedCreators(req, res, next) {
+  const userId = req.user.id;
+  const limit = parseInt(req.query.limit) || 10;
+
+  try {
+    // 1. Get IDs the user already follows
+    const { data: following } = await supabase
+      .from("follows")
+      .select("following_id")
+      .eq("follower_id", userId);
+
+    const followingIds = (following || []).map((f) => f.following_id);
+    followingIds.push(userId); // exclude self
+
+    // 2. Get creators the user is NOT following, ordered by popularity
+    let query = supabase
+      .from("users")
+      .select(
+        "id, username, full_name, profile_image_url, followers_count, role, creators(bio, verification_status)",
+      )
+      .eq("role", "creator")
+      .order("followers_count", { ascending: false })
+      .limit(limit);
+
+    if (followingIds.length > 0) {
+      query = query.not("id", "in", `(${followingIds.join(",")})`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const creators = (data || []).map((u) => ({
+      id: u.id,
+      username: u.username,
+      full_name: u.full_name,
+      profile_image_url: u.profile_image_url,
+      followers_count: u.followers_count,
+      bio: u.creators?.bio || null,
+      verification_status: u.creators?.verification_status || "none",
+    }));
+
+    res.status(200).json({ success: true, data: creators });
+  } catch (error) {
+    logger.error("Get suggested creators error:", error);
+    next(error);
+  }
+}
+
 export async function checkFollowing(req, res, next) {
   const { id: targetUserId } = req.params;
   const currentUserId = req.user.id;

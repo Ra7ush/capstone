@@ -6,12 +6,14 @@ import {
   getFollowing,
   checkFollowing,
   unfollowUser,
+  getSuggestedCreators,
 } from "../controllers/follow.controller.js";
 
 const router = Router();
 
 router.use(auth);
 
+router.get("/suggested", getSuggestedCreators);
 router.post("/follow/:id", followUser);
 router.delete("/unfollow/:id", unfollowUser);
 router.get("/followers/:id", getFollowers);

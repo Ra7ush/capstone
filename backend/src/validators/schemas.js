@@ -88,6 +88,22 @@ export const updateVerificationStatusSchema = z.object({
     .optional(),
 });
 
+// ============ Message Schemas ============
+
+export const sendMessageSchema = z.object({
+  conversationId: uuidSchema.optional(),
+  receiverId: uuidSchema.optional(),
+  content: z
+    .string()
+    .max(5000, "Message too long (max 5000 characters)")
+    .optional(),
+  images: z.array(z.string().url("Invalid image URL")).max(10).optional(),
+});
+
+export const getOrCreateConversationSchema = z.object({
+  receiverId: uuidSchema,
+});
+
 // ============ Validation Helper ============
 
 /**

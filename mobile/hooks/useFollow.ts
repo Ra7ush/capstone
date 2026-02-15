@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { followApi } from "@/lib/api";
 
+export function useSuggestedCreators(limit = 10) {
+  return useQuery({
+    queryKey: ["suggested-creators", limit],
+    queryFn: () => followApi.getSuggestedCreators(limit),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
 export function useFollow(userId?: string) {
   const queryClient = useQueryClient();
 
@@ -45,7 +53,7 @@ export function useFollow(userId?: string) {
             data: page.data.map((post: any) =>
               post.user_id === targetUserId
                 ? { ...post, is_following: true }
-                : post
+                : post,
             ),
           })),
         };
@@ -65,7 +73,7 @@ export function useFollow(userId?: string) {
       if (context?.previousFollowing) {
         queryClient.setQueryData(
           ["following", userId],
-          context.previousFollowing
+          context.previousFollowing,
         );
       }
       if (context?.previousPosts) {
@@ -105,7 +113,7 @@ export function useFollow(userId?: string) {
             data: page.data.map((post: any) =>
               post.user_id === targetUserId
                 ? { ...post, is_following: false }
-                : post
+                : post,
             ),
           })),
         };
@@ -114,7 +122,7 @@ export function useFollow(userId?: string) {
       // 4. Optimistically remove from the "following" list
       if (previousFollowing) {
         queryClient.setQueryData(["following", userId], (old: any[]) =>
-          old?.filter((f) => f.id !== targetUserId)
+          old?.filter((f) => f.id !== targetUserId),
         );
       }
 
@@ -124,7 +132,7 @@ export function useFollow(userId?: string) {
       if (context?.previousFollowing) {
         queryClient.setQueryData(
           ["following", userId],
-          context.previousFollowing
+          context.previousFollowing,
         );
       }
       if (context?.previousPosts) {
