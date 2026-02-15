@@ -291,7 +291,8 @@ export default function Message() {
             className="flex-row items-center px-5 py-3 border-b border-gray-100"
             onPress={() => router.push("/chat/requests" as any)}
           >
-            <View className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 items-center justify-center bg-blue-500">
+            {/* <View className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 items-center justify-center bg-blue-500"> */}
+            <View className="w-12 h-12 rounded-full bg-blue-500 items-center justify-center">
               <Ionicons name="mail-unread" size={22} color="white" />
             </View>
             <View className="flex-1 ml-4">

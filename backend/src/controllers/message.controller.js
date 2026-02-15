@@ -230,18 +230,21 @@ export const sendMessage = async (req, res, next) => {
       .select("request_status, initiated_by")
       .eq("id", actualConversationId)
       .single();
-
+    if (!convCheck) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Conversation not found" });
+    }
     if (
-      convCheck?.request_status === "pending" &&
-      convCheck?.initiated_by !== senderId
+      convCheck.request_status === "pending" &&
+      convCheck.initiated_by !== senderId
     ) {
       return res.status(403).json({
         success: false,
         error: "You must accept this message request before you can reply",
       });
     }
-
-    if (convCheck?.request_status === "declined") {
+    if (convCheck.request_status === "declined") {
       return res.status(403).json({
         success: false,
         error: "This message request has been declined",
@@ -338,21 +341,30 @@ export const getOrCreateConversation = async (req, res, next) => {
       .select("request_status, initiated_by")
       .eq("id", conversationId)
       .single();
-
     let requestStatus = convData?.request_status || "accepted";
-
     // Only set pending for NEW conversations that have no initiated_by yet
     if (!convData?.initiated_by) {
       const mutual = await areMutualFollowers(senderId, receiverId);
       requestStatus = mutual ? "accepted" : "pending";
-
-      await supabase
+      const { data: updated } = await supabase
         .from("conversations")
         .update({
           request_status: requestStatus,
           initiated_by: senderId,
         })
-        .eq("id", conversationId);
+        .eq("id", conversationId)
+        .is("initiated_by", null)
+        .select("request_status")
+        .maybeSingle();
+      // If another user beat us, re-read the current state
+      if (!updated) {
+        const { data: fresh } = await supabase
+          .from("conversations")
+          .select("request_status, initiated_by")
+          .eq("id", conversationId)
+          .single();
+        requestStatus = fresh?.request_status || "accepted";
+      }
     }
 
     res.status(200).json({
@@ -649,31 +661,32 @@ export const acceptMessageRequest = async (req, res, next) => {
   try {
     const { conversationId } = req.params;
     const userId = req.user?.id;
-
     if (!userId) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
-
     // Verify user is a participant and NOT the initiator
     const { data: conv, error: convError } = await supabase
       .from("conversations")
       .select("id, request_status, initiated_by")
       .eq("id", conversationId)
       .single();
-
     if (convError || !conv) {
       return res
         .status(404)
         .json({ success: false, error: "Conversation not found" });
     }
-
     if (conv.initiated_by === userId) {
       return res.status(403).json({
         success: false,
         error: "Only the recipient can accept a request",
       });
     }
-
+    if (conv.request_status !== "pending") {
+      return res.status(409).json({
+        success: false,
+        error: "This request is not pending",
+      });
+    }
     // Verify participation
     const { data: participation } = await supabase
       .from("conversation_participants")
@@ -681,19 +694,15 @@ export const acceptMessageRequest = async (req, res, next) => {
       .eq("conversation_id", conversationId)
       .eq("user_id", userId)
       .single();
-
     if (!participation) {
       return res.status(403).json({ success: false, error: "Access denied" });
     }
-
     // Update status
     const { error } = await supabase
       .from("conversations")
       .update({ request_status: "accepted" })
       .eq("id", conversationId);
-
     if (error) throw error;
-
     // Notify the requester that their request was accepted
     await createNotification({
       userId: conv.initiated_by,
@@ -703,7 +712,6 @@ export const acceptMessageRequest = async (req, res, next) => {
       body: "You can now send messages to this user",
       data: { conversation_id: conversationId },
     });
-
     res
       .status(200)
       .json({ success: true, message: "Message request accepted" });
@@ -721,31 +729,32 @@ export const declineMessageRequest = async (req, res, next) => {
   try {
     const { conversationId } = req.params;
     const userId = req.user?.id;
-
     if (!userId) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
-
     // Verify user is a participant and NOT the initiator
     const { data: conv, error: convError } = await supabase
       .from("conversations")
       .select("id, request_status, initiated_by")
       .eq("id", conversationId)
       .single();
-
     if (convError || !conv) {
       return res
         .status(404)
         .json({ success: false, error: "Conversation not found" });
     }
-
     if (conv.initiated_by === userId) {
       return res.status(403).json({
         success: false,
         error: "Only the recipient can decline a request",
       });
     }
-
+    if (conv.request_status !== "pending") {
+      return res.status(409).json({
+        success: false,
+        error: "This request is not pending",
+      });
+    }
     // Verify participation
     const { data: participation } = await supabase
       .from("conversation_participants")
@@ -753,19 +762,15 @@ export const declineMessageRequest = async (req, res, next) => {
       .eq("conversation_id", conversationId)
       .eq("user_id", userId)
       .single();
-
     if (!participation) {
       return res.status(403).json({ success: false, error: "Access denied" });
     }
-
     // Update status to declined
     const { error } = await supabase
       .from("conversations")
       .update({ request_status: "declined" })
       .eq("id", conversationId);
-
     if (error) throw error;
-
     res
       .status(200)
       .json({ success: true, message: "Message request declined" });

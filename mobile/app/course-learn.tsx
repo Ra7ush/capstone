@@ -11,7 +11,8 @@ import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import { useService } from "@/hooks/useServices";
+import { useService, usePurchasedServiceIds } from "@/hooks/useServices";
+import { useAuth } from "@/context/AuthContext";
 import type { CourseModule, Lesson } from "@/types";
 
 /**
@@ -21,7 +22,13 @@ import type { CourseModule, Lesson } from "@/types";
 export default function CourseLearn() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { session } = useAuth();
   const { data: service, isLoading } = useService(id!);
+  const { data: purchasedIds = [], isLoading: isPurchaseLoading } =
+    usePurchasedServiceIds();
+
+  const isPurchased = purchasedIds.includes(id || "");
+  const isCreator = service?.creator_id === session?.user?.id;
 
   const [expandedModules, setExpandedModules] = useState<Set<string>>(
     new Set(),
@@ -53,7 +60,7 @@ export default function CourseLearn() {
   };
 
   // ── Loading ──
-  if (isLoading) {
+  if (isLoading || isPurchaseLoading) {
     return (
       <View className="flex-1 bg-white items-center justify-center">
         <ActivityIndicator size="large" color="#000" />
@@ -70,6 +77,36 @@ export default function CourseLearn() {
         <Text className="text-gray-400 font-bold mt-4">Course not found</Text>
         <TouchableOpacity onPress={() => router.back()} className="mt-4">
           <Text className="text-black font-bold">Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ── Purchase Guard — redirect if user hasn't purchased (and isn't the creator) ──
+  if (!isPurchased && !isCreator) {
+    return (
+      <View className="flex-1 bg-white items-center justify-center px-6">
+        <Stack.Screen options={{ headerShown: false }} />
+        <Ionicons name="lock-closed-outline" size={48} color="#D1D5DB" />
+        <Text className="text-gray-800 font-black text-lg mt-4 text-center">
+          Purchase Required
+        </Text>
+        <Text className="text-gray-400 text-sm text-center mt-2">
+          You need to purchase this course before you can access the content.
+        </Text>
+        <TouchableOpacity
+          onPress={() =>
+            router.replace({
+              pathname: "/service-detail",
+              params: { id },
+            } as any)
+          }
+          className="bg-black py-4 px-8 rounded-2xl mt-6"
+        >
+          <Text className="text-white font-black text-sm">View Course</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()} className="mt-4">
+          <Text className="text-gray-500 font-bold">Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -93,8 +130,11 @@ export default function CourseLearn() {
               <TouchableOpacity
                 className="absolute inset-0 items-center justify-center"
                 onPress={() => {
-                  if (activeLesson.video_url)
-                    Linking.openURL(activeLesson.video_url);
+                  if (activeLesson.video_url) {
+                    Linking.openURL(activeLesson.video_url).catch((err) =>
+                      console.warn("Could not open video URL:", err),
+                    );
+                  }
                 }}
               />
             </>

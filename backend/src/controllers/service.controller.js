@@ -180,6 +180,33 @@ export async function getServiceById(req, res, next) {
       });
     }
 
+    // Redact video_url from lessons if the user has not purchased and is not the creator
+    const userId = req.user?.id;
+    const isCreator = userId && data.creator_id === userId;
+
+    if (!isCreator && data.modules) {
+      let hasPurchased = false;
+      if (userId) {
+        const { data: purchase } = await supabase
+          .from("purchases")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("service_id", id)
+          .maybeSingle();
+        hasPurchased = !!purchase;
+      }
+
+      if (!hasPurchased) {
+        data.modules.forEach((module) => {
+          if (module.lessons) {
+            module.lessons.forEach((lesson) => {
+              lesson.video_url = null;
+            });
+          }
+        });
+      }
+    }
+
     res.status(200).json({ success: true, data });
   } catch (error) {
     logger.error("Error fetching service:", error);

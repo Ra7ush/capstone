@@ -11,7 +11,8 @@
 
 -- 1. Add the request_status column with a default of 'accepted'
 ALTER TABLE conversations
-  ADD COLUMN IF NOT EXISTS request_status TEXT NOT NULL DEFAULT 'accepted';
+  ADD COLUMN IF NOT EXISTS request_status TEXT NOT NULL DEFAULT 'accepted'
+  CHECK (request_status IN ('accepted', 'pending', 'declined'));
 
 -- 2. Add the user who initiated the conversation (needed to know who is requester vs receiver)
 ALTER TABLE conversations

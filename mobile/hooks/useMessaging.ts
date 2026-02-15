@@ -105,14 +105,13 @@ export function useMessaging() {
  * Shares the same query cache as useMessaging — no extra network requests.
  */
 export function useUnreadMessageCount() {
-  const { conversations } = useMessaging();
-
+  const queryClient = useQueryClient();
+  const conversations = queryClient.getQueryData<any[]>(["conversations"]);
   const unreadCount =
     conversations?.reduce(
       (total: number, conv: any) => total + (conv.unreadCount || 0),
       0,
     ) ?? 0;
-
   return unreadCount;
 }
 

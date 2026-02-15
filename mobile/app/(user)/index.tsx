@@ -362,7 +362,12 @@ export default function UserHome() {
                 <TouchableOpacity
                   key={community.id}
                   className="w-44 bg-gray-50 rounded-2xl overflow-hidden border border-gray-100"
-                  onPress={() => router.push("/(user)/community")}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/community-detail",
+                      params: { id: community.id },
+                    } as any)
+                  }
                 >
                   {community.banner_url ? (
                     <Image

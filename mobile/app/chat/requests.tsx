@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   View,
   Text,
@@ -50,7 +51,10 @@ export default function MessageRequests() {
     }
   };
 
+  const [actionId, setActionId] = useState<string | null>(null);
+
   const handleAccept = async (conversationId: string) => {
+    setActionId(conversationId);
     try {
       await acceptRequest(conversationId);
       router.push({
@@ -59,7 +63,8 @@ export default function MessageRequests() {
       } as any);
     } catch (error) {
       console.error("Error accepting request:", error);
-    }
+    } finally {
+      setActionId(null);
   };
 
   const handleDecline = (conversationId: string, username: string) => {
@@ -179,7 +184,7 @@ export default function MessageRequests() {
                 <TouchableOpacity
                   className="flex-1 bg-black rounded-xl py-3 items-center"
                   onPress={() => handleAccept(conv.id)}
-                  disabled={isAccepting || isDeclining}
+                  disabled={actionId === conv.id}
                 >
                   {isAccepting ? (
                     <ActivityIndicator size="small" color="white" />
@@ -191,10 +196,10 @@ export default function MessageRequests() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   className="flex-1 bg-gray-100 rounded-xl py-3 items-center"
-                  onPress={() =>
-                    handleDecline(conv.id, conv.other_user?.username)
+                   onPress={() =>
+                    handleDecline(conv.id, conv.other_user?.username || "this user")
                   }
-                  disabled={isAccepting || isDeclining}
+                  disabled={actionId === conv.id}
                 >
                   {isDeclining ? (
                     <ActivityIndicator size="small" color="black" />
