@@ -293,6 +293,12 @@ export const followApi = {
     const response = await api.get(`/api/follow/check/${userId}`);
     return response.data as { success: boolean; isFollowing: boolean };
   },
+  getSuggestedCreators: async (limit = 10) => {
+    const response = await api.get("/api/follow/suggested", {
+      params: { limit },
+    });
+    return response.data.data;
+  },
 };
 
 export const profileApi = {
@@ -422,6 +428,28 @@ export const messageApi = {
 
   deleteMessage: async (messageId: string) => {
     const response = await api.delete(`/api/message/${messageId}`);
+    return response.data;
+  },
+
+  // Message requests (Instagram-style)
+  getMessageRequests: async () => {
+    const response = await api.get("/api/message/requests");
+    return response.data;
+  },
+  getMessageRequestsCount: async () => {
+    const response = await api.get("/api/message/requests/count");
+    return response.data as { success: boolean; data: { count: number } };
+  },
+  acceptMessageRequest: async (conversationId: string) => {
+    const response = await api.put(
+      `/api/message/requests/${conversationId}/accept`,
+    );
+    return response.data;
+  },
+  declineMessageRequest: async (conversationId: string) => {
+    const response = await api.put(
+      `/api/message/requests/${conversationId}/decline`,
+    );
     return response.data;
   },
 };

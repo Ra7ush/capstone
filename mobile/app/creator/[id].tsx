@@ -11,7 +11,7 @@ import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useCreatorProfile } from "@/hooks/useProfile";
-import { useAllServices } from "@/hooks/useServices";
+import { useAllServices, usePurchasedServiceIds } from "@/hooks/useServices";
 import { useStartConversation } from "@/hooks/useMessaging";
 import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
 
@@ -33,6 +33,7 @@ export default function CreatorProfile() {
     undefined,
     id,
   );
+  const { data: purchasedIds = [] } = usePurchasedServiceIds();
   const startConversation = useStartConversation();
 
   const handleInitiateContact = async () => {
@@ -264,7 +265,9 @@ export default function CreatorProfile() {
                     key={svc.id}
                     onPress={() =>
                       router.push({
-                        pathname: "/service-detail",
+                        pathname: purchasedIds.includes(svc.id)
+                          ? "/course-learn"
+                          : "/service-detail",
                         params: { id: svc.id },
                       })
                     }

@@ -100,6 +100,92 @@ export function useMessaging() {
   };
 }
 
+/**
+ * Lightweight hook to get total unread message count across all conversations.
+ * Shares the same query cache as useMessaging — no extra network requests.
+ */
+export function useUnreadMessageCount() {
+  const { conversations } = useMessaging();
+
+  const unreadCount =
+    conversations?.reduce(
+      (total: number, conv: any) => total + (conv.unreadCount || 0),
+      0,
+    ) ?? 0;
+
+  return unreadCount;
+}
+
+/**
+ * Hook for Instagram-style message requests.
+ * Returns pending requests, count, and accept/decline mutations.
+ */
+export function useMessageRequests() {
+  const queryClient = useQueryClient();
+  const { user } = useAuthState();
+
+  // Fetch pending requests
+  const {
+    data: requests,
+    isLoading: loadingRequests,
+    refetch: refetchRequests,
+  } = useQuery({
+    queryKey: ["message-requests"],
+    queryFn: async () => {
+      const res = await messageApi.getMessageRequests();
+      return res.data;
+    },
+    enabled: !!user?.id,
+    staleTime: 0,
+  });
+
+  // Fetch pending request count
+  const { data: requestCountData } = useQuery({
+    queryKey: ["message-requests-count"],
+    queryFn: async () => {
+      const res = await messageApi.getMessageRequestsCount();
+      return res.data.count;
+    },
+    enabled: !!user?.id,
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 60,
+  });
+
+  const requestCount = requestCountData ?? 0;
+
+  // Accept mutation
+  const acceptMutation = useMutation({
+    mutationFn: messageApi.acceptMessageRequest,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["message-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["message-requests-count"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["messages-v3"] });
+    },
+  });
+
+  // Decline mutation
+  const declineMutation = useMutation({
+    mutationFn: messageApi.declineMessageRequest,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["message-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["message-requests-count"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+
+  return {
+    requests: requests || [],
+    requestCount,
+    loadingRequests,
+    refetchRequests,
+    acceptRequest: acceptMutation.mutateAsync,
+    declineRequest: declineMutation.mutateAsync,
+    isAccepting: acceptMutation.isPending,
+    isDeclining: declineMutation.isPending,
+  };
+}
+
 export function useStartConversation() {
   const queryClient = useQueryClient();
 
@@ -198,6 +284,9 @@ export function useChat(conversationId: string, userId?: string) {
   const messages = data?.pages?.flatMap((page: any) => page.messages) || [];
   // Use the other_user from the first page
   const otherUser = data?.pages?.[0]?.other_user || null;
+  // Message request status
+  const requestStatus: string = data?.pages?.[0]?.request_status || "accepted";
+  const initiatedBy: string | null = data?.pages?.[0]?.initiated_by || null;
 
   // Real-time subscription
   useEffect(() => {
@@ -587,6 +676,8 @@ export function useChat(conversationId: string, userId?: string) {
   return {
     messages,
     otherUser,
+    requestStatus,
+    initiatedBy,
     loadingMessages,
     loadingMore,
     loadMore: fetchNextPage,

@@ -2,6 +2,25 @@ import supabase from "../config/db.js";
 import { logger } from "../config/logger.js";
 import { createNotification } from "./notification.controller.js";
 
+/**
+ * Check whether two users mutually follow each other.
+ * Returns true if userA follows userB AND userB follows userA.
+ */
+async function areMutualFollowers(userA, userB) {
+  const { data, error } = await supabase
+    .from("follows")
+    .select("id")
+    .or(
+      `and(follower_id.eq.${userA},following_id.eq.${userB}),and(follower_id.eq.${userB},following_id.eq.${userA})`,
+    );
+
+  if (error) {
+    logger.error("Error checking mutual follow:", error);
+    return false;
+  }
+  return (data || []).length >= 2;
+}
+
 export const getConversations = async (req, res, next) => {
   try {
     const userId = req.user?.id;
@@ -82,9 +101,14 @@ export const getConversations = async (req, res, next) => {
           other_user: otherParticipant?.user || null,
           last_message: lastMessage,
           unreadCount: unreadCountMap[conv.id] || 0,
+          request_status: conv.request_status || "accepted",
+          initiated_by: conv.initiated_by,
         };
       })
-      .filter((conv) => conv.last_message !== null);
+      .filter(
+        (conv) =>
+          conv.last_message !== null && conv.request_status === "accepted",
+      );
 
     res.status(200).json({ success: true, data: formattedConversations });
   } catch (error) {
@@ -154,6 +178,8 @@ export const getMessages = async (req, res, next) => {
       data: {
         messages: messages || [],
         other_user: otherParticipant?.user || null,
+        request_status: conversation.request_status || "accepted",
+        initiated_by: conversation.initiated_by,
         pagination: {
           page,
           limit,
@@ -198,6 +224,30 @@ export const sendMessage = async (req, res, next) => {
         .json({ success: false, error: "Missing conversation details" });
     }
 
+    // Check message request status — block recipient from sending until they accept
+    const { data: convCheck } = await supabase
+      .from("conversations")
+      .select("request_status, initiated_by")
+      .eq("id", actualConversationId)
+      .single();
+
+    if (
+      convCheck?.request_status === "pending" &&
+      convCheck?.initiated_by !== senderId
+    ) {
+      return res.status(403).json({
+        success: false,
+        error: "You must accept this message request before you can reply",
+      });
+    }
+
+    if (convCheck?.request_status === "declined") {
+      return res.status(403).json({
+        success: false,
+        error: "This message request has been declined",
+      });
+    }
+
     // 2. Insert the message
     const { data: message, error: msgError } = await supabase
       .from("messages")
@@ -226,6 +276,9 @@ export const sendMessage = async (req, res, next) => {
     }
 
     // 4. SYSTEM-WIDE NOTIFICATION: Notify the recipient on their personal channel
+    // This triggers real-time badge updates on the Messages tab.
+    // We intentionally do NOT create a persistent notification (bell icon)
+    // for messages — the unread count on the Messages tab is sufficient.
     const { data: participants } = await supabase
       .from("conversation_participants")
       .select("user_id")
@@ -242,22 +295,6 @@ export const sendMessage = async (req, res, next) => {
           senderId,
           content: message.content,
         },
-      });
-
-      // Create a persistent notification for the message
-      const { data: senderUser } = await supabase
-        .from("users")
-        .select("username")
-        .eq("id", senderId)
-        .single();
-
-      await createNotification({
-        userId: participants.user_id,
-        actorId: senderId,
-        type: "message",
-        title: `${senderUser?.username || "Someone"} sent you a message`,
-        body: content?.substring(0, 100) || "Sent an image",
-        data: { conversation_id: actualConversationId },
       });
     }
 
@@ -294,9 +331,33 @@ export const getOrCreateConversation = async (req, res, next) => {
       throw error;
     }
 
+    // Check if this is a brand-new conversation (no messages yet)
+    // and whether the users mutually follow each other.
+    const { data: convData } = await supabase
+      .from("conversations")
+      .select("request_status, initiated_by")
+      .eq("id", conversationId)
+      .single();
+
+    let requestStatus = convData?.request_status || "accepted";
+
+    // Only set pending for NEW conversations that have no initiated_by yet
+    if (!convData?.initiated_by) {
+      const mutual = await areMutualFollowers(senderId, receiverId);
+      requestStatus = mutual ? "accepted" : "pending";
+
+      await supabase
+        .from("conversations")
+        .update({
+          request_status: requestStatus,
+          initiated_by: senderId,
+        })
+        .eq("id", conversationId);
+    }
+
     res.status(200).json({
       success: true,
-      data: { conversationId },
+      data: { conversationId, requestStatus },
     });
   } catch (error) {
     logger.error("Error in getOrCreateConversation:", error);
@@ -451,6 +512,265 @@ export const deleteMessage = async (req, res, next) => {
 
     return res.status(200).json({ success: true, message: "Deleted" });
   } catch (error) {
+    next(error);
+  }
+};
+
+// ──────────────────────────────────────────
+// Message Requests (Instagram-style)
+// ──────────────────────────────────────────
+
+/**
+ * GET /api/message/requests
+ * Get all pending message requests for the current user.
+ * These are conversations where:
+ *  - request_status = 'pending'
+ *  - The current user is NOT the initiator (they are the receiver)
+ */
+export const getMessageRequests = async (req, res, next) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    // 1. Get conversation IDs the user is part of
+    const { data: participations, error: partError } = await supabase
+      .from("conversation_participants")
+      .select("conversation_id")
+      .eq("user_id", userId);
+
+    if (partError) throw partError;
+
+    if (!participations || participations.length === 0) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    const conversationIds = participations.map((p) => p.conversation_id);
+
+    // 2. Get pending conversations where current user did NOT initiate
+    const { data: conversations, error: convError } = await supabase
+      .from("conversations")
+      .select(
+        `
+        *,
+        participants:conversation_participants(
+          user:users(id, username, profile_image_url)
+        ),
+        last_message:messages(
+          content,
+          created_at,
+          sender_id,
+          image_urls
+        )
+      `,
+      )
+      .in("id", conversationIds)
+      .eq("request_status", "pending")
+      .neq("initiated_by", userId)
+      .order("last_message_at", { ascending: false });
+
+    if (convError) throw convError;
+
+    const formattedRequests = (conversations || [])
+      .map((conv) => {
+        const otherParticipant = conv.participants.find(
+          (p) => p.user.id !== userId,
+        );
+
+        const lastMessage =
+          conv.last_message && conv.last_message.length > 0
+            ? conv.last_message.sort(
+                (a, b) => new Date(b.created_at) - new Date(a.created_at),
+              )[0]
+            : null;
+
+        return {
+          id: conv.id,
+          last_message_at: conv.last_message_at,
+          other_user: otherParticipant?.user || null,
+          last_message: lastMessage,
+          request_status: "pending",
+          initiated_by: conv.initiated_by,
+        };
+      })
+      .filter((conv) => conv.last_message !== null);
+
+    res.status(200).json({ success: true, data: formattedRequests });
+  } catch (error) {
+    logger.error("Error fetching message requests:", error);
+    next(error);
+  }
+};
+
+/**
+ * GET /api/message/requests/count
+ * Get the count of pending message requests.
+ */
+export const getMessageRequestsCount = async (req, res, next) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { data: participations } = await supabase
+      .from("conversation_participants")
+      .select("conversation_id")
+      .eq("user_id", userId);
+
+    if (!participations || participations.length === 0) {
+      return res.status(200).json({ success: true, data: { count: 0 } });
+    }
+
+    const conversationIds = participations.map((p) => p.conversation_id);
+
+    const { data, error } = await supabase
+      .from("conversations")
+      .select("id", { count: "exact" })
+      .in("id", conversationIds)
+      .eq("request_status", "pending")
+      .neq("initiated_by", userId);
+
+    if (error) throw error;
+
+    res.status(200).json({ success: true, data: { count: data?.length || 0 } });
+  } catch (error) {
+    logger.error("Error counting message requests:", error);
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/message/requests/:conversationId/accept
+ * Accept a pending message request.
+ */
+export const acceptMessageRequest = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    // Verify user is a participant and NOT the initiator
+    const { data: conv, error: convError } = await supabase
+      .from("conversations")
+      .select("id, request_status, initiated_by")
+      .eq("id", conversationId)
+      .single();
+
+    if (convError || !conv) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Conversation not found" });
+    }
+
+    if (conv.initiated_by === userId) {
+      return res.status(403).json({
+        success: false,
+        error: "Only the recipient can accept a request",
+      });
+    }
+
+    // Verify participation
+    const { data: participation } = await supabase
+      .from("conversation_participants")
+      .select("user_id")
+      .eq("conversation_id", conversationId)
+      .eq("user_id", userId)
+      .single();
+
+    if (!participation) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Update status
+    const { error } = await supabase
+      .from("conversations")
+      .update({ request_status: "accepted" })
+      .eq("id", conversationId);
+
+    if (error) throw error;
+
+    // Notify the requester that their request was accepted
+    await createNotification({
+      userId: conv.initiated_by,
+      actorId: userId,
+      type: "message_request_accepted",
+      title: "Message request accepted",
+      body: "You can now send messages to this user",
+      data: { conversation_id: conversationId },
+    });
+
+    res
+      .status(200)
+      .json({ success: true, message: "Message request accepted" });
+  } catch (error) {
+    logger.error("Error accepting message request:", error);
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/message/requests/:conversationId/decline
+ * Decline a pending message request.
+ */
+export const declineMessageRequest = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    // Verify user is a participant and NOT the initiator
+    const { data: conv, error: convError } = await supabase
+      .from("conversations")
+      .select("id, request_status, initiated_by")
+      .eq("id", conversationId)
+      .single();
+
+    if (convError || !conv) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Conversation not found" });
+    }
+
+    if (conv.initiated_by === userId) {
+      return res.status(403).json({
+        success: false,
+        error: "Only the recipient can decline a request",
+      });
+    }
+
+    // Verify participation
+    const { data: participation } = await supabase
+      .from("conversation_participants")
+      .select("user_id")
+      .eq("conversation_id", conversationId)
+      .eq("user_id", userId)
+      .single();
+
+    if (!participation) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    // Update status to declined
+    const { error } = await supabase
+      .from("conversations")
+      .update({ request_status: "declined" })
+      .eq("id", conversationId);
+
+    if (error) throw error;
+
+    res
+      .status(200)
+      .json({ success: true, message: "Message request declined" });
+  } catch (error) {
+    logger.error("Error declining message request:", error);
     next(error);
   }
 };

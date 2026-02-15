@@ -1,7 +1,9 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { View } from "react-native";
+import { View, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useUnreadMessageCount } from "@/hooks/useMessaging";
+import { useNotifications } from "@/hooks/useNotifications";
 
 /**
  * Tabs Layout
@@ -10,6 +12,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
  */
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const unreadMessages = useUnreadMessageCount();
+  const { unreadCount: unreadNotifications } = useNotifications();
 
   return (
     <Tabs
@@ -36,7 +40,35 @@ export default function TabsLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
+            <View>
+              <Ionicons name="home" size={size} color={color} />
+              {unreadNotifications > 0 && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: -4,
+                    right: -8,
+                    backgroundColor: "#EF4444",
+                    borderRadius: 10,
+                    minWidth: 18,
+                    height: 18,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingHorizontal: 4,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 10,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />
@@ -81,7 +113,35 @@ export default function TabsLayout() {
         options={{
           title: "Message",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubble" size={size} color={color} />
+            <View>
+              <Ionicons name="chatbubble" size={size} color={color} />
+              {unreadMessages > 0 && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: -4,
+                    right: -8,
+                    backgroundColor: "#EF4444",
+                    borderRadius: 10,
+                    minWidth: 18,
+                    height: 18,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingHorizontal: 4,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 10,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {unreadMessages > 99 ? "99+" : unreadMessages}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />

@@ -17,7 +17,7 @@ import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useRef } from "react";
-import { useMessaging } from "../../hooks/useMessaging";
+import { useMessaging, useMessageRequests } from "../../hooks/useMessaging";
 import { usePresence } from "../../hooks/usePresence";
 import { profileApi, messageApi } from "../../lib/api";
 
@@ -190,6 +190,7 @@ export default function Message() {
     refetchConversations,
     typingStates,
   } = useMessaging();
+  const { requestCount } = useMessageRequests();
   const { isUserOnline } = usePresence();
 
   // const filteredMessages =
@@ -249,12 +250,6 @@ export default function Message() {
       <View className="px-5 pt-14 pb-2 bg-white flex-row items-center justify-between">
         <View className="flex-row items-center">
           <Text className="text-[22px] font-black text-black">Messages</Text>
-          <Ionicons
-            name="chevron-down"
-            size={14}
-            color="black"
-            className="ml-1 mt-1"
-          />
         </View>
         <View className="flex-row items-center">
           <TouchableOpacity className="mr-5">
@@ -290,6 +285,38 @@ export default function Message() {
           />
         }
       >
+        {/* Message Requests Banner */}
+        {requestCount > 0 && (
+          <TouchableOpacity
+            className="flex-row items-center px-5 py-3 border-b border-gray-100"
+            onPress={() => router.push("/chat/requests" as any)}
+          >
+            <View className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 items-center justify-center bg-blue-500">
+              <Ionicons name="mail-unread" size={22} color="white" />
+            </View>
+            <View className="flex-1 ml-4">
+              <Text className="text-[15px] font-black text-black">
+                Message Requests
+              </Text>
+              <Text className="text-[13px] text-gray-400 font-medium">
+                {requestCount} pending{" "}
+                {requestCount === 1 ? "request" : "requests"}
+              </Text>
+            </View>
+            <View className="bg-[#3B82F6] px-2 py-0.5 rounded-full">
+              <Text className="text-white text-[11px] font-black">
+                {requestCount}
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color="#D1D5DB"
+              style={{ marginLeft: 8 }}
+            />
+          </TouchableOpacity>
+        )}
+
         <View className="px-5 py-4">
           {filteredMessages.map((conv: any) => (
             <TouchableOpacity

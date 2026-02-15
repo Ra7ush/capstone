@@ -21,10 +21,12 @@ import { useCreatorStats } from "@/hooks/useCreator";
 import { useMyServices } from "@/hooks/useServices";
 import { formatTimeAgo } from "@/lib/utils";
 import { RefreshControl } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function Profile() {
   const router = useRouter();
   const { user: authUser, refresh: refreshAuth } = useAuthState();
+  const insets = useSafeAreaInsets();
   const {
     data: dbUser,
     isLoading: isLoadingUser,
@@ -183,7 +185,7 @@ export default function Profile() {
   return (
     <View className="flex-1 bg-white">
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
 
       <ScrollView
         className="flex-1"
@@ -193,7 +195,10 @@ export default function Profile() {
         }
       >
         {/* Header / Brand Profile */}
-        <View className="px-6 pt-16 pb-8 bg-black">
+        <View
+          className="px-6 pb-8 bg-black"
+          style={{ paddingTop: insets.top + 12 }}
+        >
           <View className="flex-row items-center gap-4 mb-6">
             <View className="w-20 h-20 rounded-full bg-[#FF4D00] items-center justify-center border-4 border-white/10">
               <Text className="text-white text-3xl font-black italic">

@@ -289,78 +289,105 @@ export default function ServiceDetail() {
               <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">
                 Curriculum
               </Text>
-              {service.modules.map((module: CourseModule, index: number) => (
-                <View
-                  key={module.id}
-                  className="bg-gray-50 rounded-2xl mb-3 overflow-hidden"
-                >
-                  <TouchableOpacity
-                    onPress={() => toggleModule(module.id)}
-                    className="flex-row items-center p-4"
-                  >
-                    <View className="w-8 h-8 rounded-full bg-black items-center justify-center mr-3">
-                      <Text className="text-white font-black text-sm">
-                        {index + 1}
-                      </Text>
-                    </View>
-                    <View className="flex-1">
-                      <Text className="font-black text-black" numberOfLines={1}>
-                        {module.title}
-                      </Text>
-                      <Text className="text-gray-400 text-xs font-bold">
-                        {module.lessons?.length || 0} lessons
-                      </Text>
-                    </View>
-                    <Ionicons
-                      name={
-                        expandedModules.has(module.id)
-                          ? "chevron-up"
-                          : "chevron-down"
-                      }
-                      size={20}
-                      color="#9CA3AF"
-                    />
-                  </TouchableOpacity>
 
-                  {/* Lessons */}
-                  {expandedModules.has(module.id) && module.lessons && (
-                    <View className="px-4 pb-4">
-                      {module.lessons.map((lesson, lessonIndex) => (
-                        <View
-                          key={lesson.id}
-                          className="flex-row items-center bg-white p-3 rounded-xl mb-2"
+              {isPurchased ? (
+                /* Purchased — show only the Go to Course Content button */
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push({
+                      pathname: "/course-learn",
+                      params: { id: service.id },
+                    } as any)
+                  }
+                  className="bg-black py-4 rounded-2xl items-center flex-row justify-center"
+                >
+                  <Ionicons name="play-circle" size={18} color="white" />
+                  <Text className="text-white font-black text-sm ml-2">
+                    Go to Course Content
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                /* Not purchased — show curriculum preview */
+                <>
+                  {service.modules.map(
+                    (module: CourseModule, index: number) => (
+                      <View
+                        key={module.id}
+                        className="bg-gray-50 rounded-2xl mb-3 overflow-hidden"
+                      >
+                        <TouchableOpacity
+                          onPress={() => toggleModule(module.id)}
+                          className="flex-row items-center p-4"
                         >
-                          <Text className="text-gray-400 font-bold mr-3 w-6">
-                            {lessonIndex + 1}
-                          </Text>
+                          <View className="w-8 h-8 rounded-full bg-black items-center justify-center mr-3">
+                            <Text className="text-white font-black text-sm">
+                              {index + 1}
+                            </Text>
+                          </View>
                           <View className="flex-1">
                             <Text
-                              className="font-bold text-black"
+                              className="font-black text-black"
                               numberOfLines={1}
                             >
-                              {lesson.title}
+                              {module.title}
                             </Text>
-                            {lesson.is_preview && (
-                              <View className="bg-blue-100 px-2 py-0.5 rounded self-start mt-1">
-                                <Text className="text-blue-600 text-[10px] font-bold">
-                                  Preview
-                                </Text>
-                              </View>
-                            )}
+                            <Text className="text-gray-400 text-xs font-bold">
+                              {module.lessons?.length || 0} lessons
+                            </Text>
                           </View>
-                          {!isPurchased && !lesson.is_preview && (
-                            <Ionicons
-                              name="lock-closed"
-                              size={14}
-                              color="#D1D5DB"
-                            />
-                          )}
-                        </View>
-                      ))}
-                    </View>
+                          <Ionicons
+                            name={
+                              expandedModules.has(module.id)
+                                ? "chevron-up"
+                                : "chevron-down"
+                            }
+                            size={20}
+                            color="#9CA3AF"
+                          />
+                        </TouchableOpacity>
+
+                        {/* Lessons */}
+                        {expandedModules.has(module.id) && module.lessons && (
+                          <View className="px-4 pb-4">
+                            {module.lessons.map((lesson, lessonIndex) => (
+                              <View
+                                key={lesson.id}
+                                className="flex-row items-center bg-white p-3 rounded-xl mb-2"
+                              >
+                                <Text className="text-gray-400 font-bold mr-3 w-6">
+                                  {lessonIndex + 1}
+                                </Text>
+                                <View className="flex-1">
+                                  <Text
+                                    className="font-bold text-black"
+                                    numberOfLines={1}
+                                  >
+                                    {lesson.title}
+                                  </Text>
+                                  {lesson.is_preview && (
+                                    <View className="bg-blue-100 px-2 py-0.5 rounded self-start mt-1">
+                                      <Text className="text-blue-600 text-[10px] font-bold">
+                                        Preview
+                                      </Text>
+                                    </View>
+                                  )}
+                                </View>
+                                {!lesson.is_preview && (
+                                  <Ionicons
+                                    name="lock-closed"
+                                    size={14}
+                                    color="#D1D5DB"
+                                  />
+                                )}
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    ),
                   )}
-                </View>
-              ))}
+                </>
+              )}
             </View>
           )}
 
