@@ -88,6 +88,16 @@ export const updateVerificationStatusSchema = z.object({
     .optional(),
 });
 
+// ============ Subscription Schemas ============
+
+export const subscriptionPlanSchema = z.object({
+  plan: z.enum(["free", "pro"], {
+    errorMap: () => ({
+      message: "Plan must be: free or pro",
+    }),
+  }),
+});
+
 // ============ Message Schemas ============
 
 export const sendMessageSchema = z.object({

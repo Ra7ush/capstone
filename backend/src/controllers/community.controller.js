@@ -138,7 +138,7 @@ export async function getDiscoverCommunities(req, res, next) {
         .from("community_join_requests")
         .select("community_id, status")
         .eq("user_id", userId)
-        .in("status", ["pending"]);
+        .in("status", ["pending", "rejected"]);
 
       const joinedIds = new Set(joined?.map((j) => j.community_id) || []);
       const requestMap = new Map(
@@ -300,6 +300,13 @@ export async function leaveCommunity(req, res, next) {
       }
       return res.status(400).json({ success: false, error: data.message });
     }
+
+    // Ensure stale membership records are removed (defensive cleanup)
+    await supabase
+      .from("community_members")
+      .delete()
+      .eq("community_id", id)
+      .eq("user_id", userId);
 
     return res.status(200).json({ success: true, message: "Left community" });
   } catch (error) {
@@ -463,9 +470,6 @@ export async function getFeed(req, res, next) {
             // User hasn't joined any communities — return empty
             return { posts: [], count: 0 };
           }
-        } else {
-          // No user, no community — return empty
-          return { posts: [], count: 0 };
         }
 
         const {
@@ -485,7 +489,29 @@ export async function getFeed(req, res, next) {
       30, // 30 seconds TTL
     );
 
-    if (userId && posts) {
+    // Final Filtering: Strip out posts from blocked users (even if they were in the cache)
+    let filteredPosts = posts;
+    if (userId && posts && posts.length > 0) {
+      // Find all users blocked by the current user or who blocked the current user
+      const { data: blockedData } = await supabase
+        .from("user_blocks")
+        .select("blocked_id, blocker_id")
+        .or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`);
+
+      const blockedIds = new Set([
+        ...(blockedData?.map((b) => b.blocked_id) || []),
+        ...(blockedData?.map((b) => b.blocker_id) || []),
+      ]);
+
+      // Remove self from blockedIds (we want to see our own posts!)
+      blockedIds.delete(userId);
+
+      if (blockedIds.size > 0) {
+        filteredPosts = posts.filter((post) => !blockedIds.has(post.user_id));
+      }
+    }
+
+    if (userId && filteredPosts) {
       // 1. Check likes
       const { data: userLikes } = await supabase
         .from("post_likes")
@@ -502,7 +528,7 @@ export async function getFeed(req, res, next) {
 
       const followingIds = new Set(following?.map((f) => f.following_id) || []);
 
-      posts.forEach((post) => {
+      filteredPosts.forEach((post) => {
         post.has_liked = likedPostIds.has(post.id);
         post.is_following = followingIds.has(post.user_id);
         if (post.user) {
@@ -511,8 +537,8 @@ export async function getFeed(req, res, next) {
             post.user.creators?.verification_status;
         }
       });
-    } else if (posts) {
-      posts.forEach((post) => {
+    } else if (filteredPosts) {
+      filteredPosts.forEach((post) => {
         if (post.user) {
           post.user.bio = post.user.creators?.bio;
           post.user.verification_status =
@@ -523,7 +549,7 @@ export async function getFeed(req, res, next) {
 
     return res.status(200).json({
       success: true,
-      data: posts,
+      data: filteredPosts,
       pagination: {
         total: count,
         page,
@@ -653,7 +679,30 @@ export async function likePost(req, res, next) {
         .json({ success: false, error: "Invalid post ID format" });
     }
 
-    // ... (rest of the logic remains the same, just checking for throws) ...
+    // Block Check: Verify neither user is blocked by the other (Post owner vs Liker)
+    const { data: postInfo } = await supabase
+      .from("posts")
+      .select("user_id")
+      .eq("id", post_id)
+      .single();
+
+    if (postInfo?.user_id) {
+      const { data: blockCheck } = await supabase
+        .from("user_blocks")
+        .select("id")
+        .or(
+          `and(blocker_id.eq.${user_id},blocked_id.eq.${postInfo.user_id}),and(blocker_id.eq.${postInfo.user_id},blocked_id.eq.${user_id})`,
+        )
+        .maybeSingle();
+
+      if (blockCheck) {
+        return res.status(403).json({
+          success: false,
+          error: "You cannot interact with this content due to privacy settings",
+        });
+      }
+    }
+
     // 1. Attempt Atomic RPC
     logger.debug("Attempting handle_post_like RPC...");
     const { data: rpcData, error: rpcError } = await supabase.rpc(
@@ -863,6 +912,30 @@ export async function addComment(req, res, next) {
       return res
         .status(400)
         .json({ success: false, error: "Comment content is required" });
+    }
+
+    // Block Check: Verify neither user is blocked by the other (Post owner vs Commenter)
+    const { data: postInfo } = await supabase
+      .from("posts")
+      .select("user_id")
+      .eq("id", id)
+      .single();
+
+    if (postInfo?.user_id) {
+      const { data: blockCheck } = await supabase
+        .from("user_blocks")
+        .select("id")
+        .or(
+          `and(blocker_id.eq.${userId},blocked_id.eq.${postInfo.user_id}),and(blocker_id.eq.${postInfo.user_id},blocked_id.eq.${userId})`,
+        )
+        .maybeSingle();
+
+      if (blockCheck) {
+        return res.status(403).json({
+          success: false,
+          error: "You cannot interact with this content due to privacy settings",
+        });
+      }
     }
 
     const { data, error } = await supabase
@@ -1287,6 +1360,24 @@ export async function requestToJoin(req, res, next) {
       });
     }
 
+    // Block Check: Verify neither user is blocked by the other (Community Creator vs Requester)
+    if (community.creator_id) {
+      const { data: blockCheck } = await supabase
+        .from("user_blocks")
+        .select("id")
+        .or(
+          `and(blocker_id.eq.${userId},blocked_id.eq.${community.creator_id}),and(blocker_id.eq.${community.creator_id},blocked_id.eq.${userId})`,
+        )
+        .maybeSingle();
+
+      if (blockCheck) {
+        return res.status(403).json({
+          success: false,
+          error: "You cannot join this community due to privacy settings",
+        });
+      }
+    }
+
     // Check if already a member
     const { data: existingMember } = await supabase
       .from("community_members")
@@ -1317,8 +1408,8 @@ export async function requestToJoin(req, res, next) {
           error: "You already have a pending request",
         });
       }
-      // If previously rejected, allow re-request by updating
-      if (existingRequest.status === "rejected") {
+      // If previously rejected or approved, allow re-request by updating
+      if (["rejected", "approved"].includes(existingRequest.status)) {
         const { error: updateError } = await supabase
           .from("community_join_requests")
           .update({

@@ -10,6 +10,8 @@ import { useAuthState } from "@/hooks/useAuthState";
 import { communityApi, profileApi } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import LoadingScreen from "@/components/LoadingScreen";
+import { AuthProvider } from "@/context/AuthContext";
+import { PresenceProvider } from "@/context/PresenceContext";
 
 // Suppress warnings from dependencies
 LogBox.ignoreLogs([
@@ -118,9 +120,20 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         } else {
           router.replace("/(user)");
         }
+        return;
       }
+
     }
-  }, [isLoading, session, isEmailVerified, hasProfile, aal, user]);
+  }, [
+    isLoading,
+    session,
+    isEmailVerified,
+    hasProfile,
+    aal,
+    user,
+    router,
+    segments,
+  ]);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -253,9 +266,46 @@ function RealtimeSync() {
     // 5. Global Notification Listener for Messages
     const notificationChannel = supabase
       .channel(`notifications:${userId}`)
+      .on("broadcast", { event: "new_notification" }, () => {
+        queryClient.invalidateQueries({
+          queryKey: ["notifications", userId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["notifications-unread-count", userId],
+        });
+      })
       .on("broadcast", { event: "new_message" }, ({ payload }) => {
         console.log("🔔 [Global] New Message Notification!", payload);
-        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        queryClient.setQueryData(["conversations"], (old: any) => {
+          if (!Array.isArray(old)) return old;
+          if (!payload?.conversationId) return old;
+          let found = false;
+          const next = old.map((conv: any) => {
+            if (conv.id !== payload.conversationId) return conv;
+            found = true;
+            return {
+              ...conv,
+              unreadCount: (conv.unreadCount || 0) + 1,
+              last_message: conv.last_message
+                ? {
+                    ...conv.last_message,
+                    content: payload.content ?? conv.last_message.content,
+                    sender_id: payload.senderId ?? conv.last_message.sender_id,
+                    created_at:
+                      payload.createdAt ?? conv.last_message.created_at,
+                  }
+                : conv.last_message,
+              last_message_at:
+                payload.createdAt ??
+                conv.last_message_at ??
+                new Date().toISOString(),
+            };
+          });
+          if (!found) {
+            queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          }
+          return next;
+        });
         if (payload.conversationId) {
           queryClient.invalidateQueries({
             queryKey: ["messages-v3", payload.conversationId],
@@ -264,6 +314,15 @@ function RealtimeSync() {
       })
       .on("broadcast", { event: "read_notification" }, ({ payload }) => {
         console.log("👀 [Global] Messages Read Notification!", payload);
+        queryClient.setQueryData(["conversations"], (old: any) => {
+          if (!Array.isArray(old)) return old;
+          if (!payload?.conversationId) return old;
+          return old.map((conv: any) =>
+            conv.id === payload.conversationId
+              ? { ...conv, unreadCount: 0 }
+              : conv,
+          );
+        });
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
         if (payload.conversationId) {
           queryClient.invalidateQueries({
@@ -282,9 +341,6 @@ function RealtimeSync() {
 
   return null;
 }
-
-import { AuthProvider } from "@/context/AuthContext";
-import { PresenceProvider } from "@/context/PresenceContext";
 
 export default function RootLayout() {
   return (

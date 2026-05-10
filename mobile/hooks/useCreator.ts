@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { creatorApi } from "../lib/api";
 import { useAuthState } from "./useAuthState";
+import { Alert } from "react-native";
 
 export interface CreatorStats {
   wallet_balance: number;
@@ -65,5 +66,26 @@ export function useRecentActivity() {
     },
     enabled: !!userId,
     staleTime: 1000 * 30, // 30 seconds
+  });
+}
+
+export function useWithdraw() {
+  const queryClient = useQueryClient();
+  const { session } = useAuthState();
+  const userId = session?.user?.id;
+
+  return useMutation({
+    mutationFn: async () => {
+      return await creatorApi.withdraw();
+    },
+    onSuccess: (data) => {
+      // Invalidate stats to refresh balance
+      queryClient.invalidateQueries({ queryKey: ["creator", "stats", userId] });
+      Alert.alert("Success", data.message || "Withdrawal successful");
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.error || error.message || "Failed to process withdrawal";
+      Alert.alert("Error", message);
+    },
   });
 }

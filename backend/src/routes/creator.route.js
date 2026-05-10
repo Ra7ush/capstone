@@ -6,6 +6,7 @@ import {
   updateCreatorProfile,
   deleteCreatorProfile,
   getRecentActivity,
+  withdrawFunds,
 } from "../controllers/creator.controller.js";
 import { auth } from "../middlewares/auth.js";
 import { Router } from "express";
@@ -22,5 +23,6 @@ router.get("/profile/:id", auth, getCreatorProfile);
 router.put("/profile/:id", auth, updateCreatorProfile);
 router.delete("/profile/:id", auth, deleteCreatorProfile);
 router.get("/activity", auth, getRecentActivity);
+router.post("/withdraw", auth, withdrawFunds);
 
 export default router;

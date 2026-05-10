@@ -251,6 +251,32 @@ export const sendMessage = async (req, res, next) => {
       });
     }
 
+    // Block Check: Verify neither user is blocked by the other
+    const { data: receiverInfo } = await supabase
+      .from("conversation_participants")
+      .select("user_id")
+      .eq("conversation_id", actualConversationId)
+      .neq("user_id", senderId)
+      .single();
+
+    if (receiverInfo?.user_id) {
+      const { data: blockCheck } = await supabase
+        .from("user_blocks")
+        .select("id")
+        .or(
+          `and(blocker_id.eq.${senderId},blocked_id.eq.${receiverInfo.user_id}),and(blocker_id.eq.${receiverInfo.user_id},blocked_id.eq.${senderId})`,
+        )
+        .maybeSingle();
+
+      if (blockCheck) {
+        return res.status(403).json({
+          success: false,
+          error:
+            "You cannot send messages to this user due to privacy settings",
+        });
+      }
+    }
+
     // 2. Insert the message
     const { data: message, error: msgError } = await supabase
       .from("messages")
@@ -364,6 +390,23 @@ export const getOrCreateConversation = async (req, res, next) => {
           .eq("id", conversationId)
           .single();
         requestStatus = fresh?.request_status || "accepted";
+      }
+    }
+
+    if (requestStatus === "pending") {
+      try {
+        await supabase.channel(`notifications:${receiverId}`).send({
+          type: "broadcast",
+          event: "message_request",
+          payload: {
+            conversationId,
+            initiatedBy: senderId,
+            receiverId,
+            status: "pending",
+          },
+        });
+      } catch (broadcastError) {
+        logger.error("Broadcast message request failed:", broadcastError);
       }
     }
 
@@ -712,6 +755,30 @@ export const acceptMessageRequest = async (req, res, next) => {
       body: "You can now send messages to this user",
       data: { conversation_id: conversationId },
     });
+    try {
+      await supabase.channel(`notifications:${conv.initiated_by}`).send({
+        type: "broadcast",
+        event: "message_request_update",
+        payload: {
+          conversationId,
+          initiatedBy: conv.initiated_by,
+          receiverId: userId,
+          status: "accepted",
+        },
+      });
+      await supabase.channel(`notifications:${userId}`).send({
+        type: "broadcast",
+        event: "message_request_update",
+        payload: {
+          conversationId,
+          initiatedBy: conv.initiated_by,
+          receiverId: userId,
+          status: "accepted",
+        },
+      });
+    } catch (broadcastError) {
+      logger.error("Broadcast message request accept failed:", broadcastError);
+    }
     res
       .status(200)
       .json({ success: true, message: "Message request accepted" });
@@ -771,6 +838,30 @@ export const declineMessageRequest = async (req, res, next) => {
       .update({ request_status: "declined" })
       .eq("id", conversationId);
     if (error) throw error;
+    try {
+      await supabase.channel(`notifications:${conv.initiated_by}`).send({
+        type: "broadcast",
+        event: "message_request_update",
+        payload: {
+          conversationId,
+          initiatedBy: conv.initiated_by,
+          receiverId: userId,
+          status: "declined",
+        },
+      });
+      await supabase.channel(`notifications:${userId}`).send({
+        type: "broadcast",
+        event: "message_request_update",
+        payload: {
+          conversationId,
+          initiatedBy: conv.initiated_by,
+          receiverId: userId,
+          status: "declined",
+        },
+      });
+    } catch (broadcastError) {
+      logger.error("Broadcast message request decline failed:", broadcastError);
+    }
     res
       .status(200)
       .json({ success: true, message: "Message request declined" });

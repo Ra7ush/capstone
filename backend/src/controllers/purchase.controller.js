@@ -1,6 +1,7 @@
 import supabase from "../config/db.js";
 import { logger } from "../config/logger.js";
 import { createNotification } from "./notification.controller.js";
+import { invalidatePattern } from "../config/redis.js";
 
 export async function createPurchase(req, res, next) {
   try {
@@ -79,6 +80,13 @@ export async function createPurchase(req, res, next) {
     } catch (notifErr) {
       logger.error("Purchase notification error:", notifErr);
       // Non-fatal — purchase was successful
+    }
+
+    // Invalidate admin finance cache so dashboard stats update immediately
+    try {
+      await invalidatePattern("admin:finance:*");
+    } catch (cacheErr) {
+      logger.warn("Failed to invalidate admin finance cache after purchase", cacheErr);
     }
 
     return res.status(201).json({ success: true, data });

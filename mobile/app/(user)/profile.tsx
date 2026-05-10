@@ -78,26 +78,11 @@ export default function Profile() {
               },
             ]
           : []),
-        {
-          icon: "star-outline",
-          label: "My Subscriptions",
-          route: "/subscriptions",
-        },
-        {
-          icon: "wallet-outline",
-          label: "Payment Methods",
-          route: "/payments",
-        },
       ],
     },
     {
       title: "Settings",
       items: [
-        {
-          icon: "settings-outline",
-          label: "Advanced Settings",
-          route: "/advanced-settings",
-        },
         {
           icon: "notifications-outline",
           label: "Notifications",
@@ -242,7 +227,7 @@ export default function Profile() {
                 Services
               </Text>
             </View>
-            <View className="flex-1 items-center">
+            <View className="flex-1 items-center border-r border-white/10">
               <Text className="text-white font-black text-lg italic">
                 {stats.communities}
               </Text>
@@ -250,6 +235,31 @@ export default function Profile() {
                 Communities
               </Text>
             </View>
+            {profile?.role === "creator" && (
+              <>
+                <View className="flex-1 items-center border-r border-white/10">
+                  <Text className="text-white font-black text-lg italic">
+                    {profile?.average_rating
+                      ? profile.average_rating.toFixed(1)
+                      : "0.0"}
+                  </Text>
+                  <View className="flex-row items-center">
+                    <Ionicons name="star" size={8} color="#FF4D00" />
+                    <Text className="text-gray-500 text-[10px] font-black uppercase ml-0.5">
+                      Rating
+                    </Text>
+                  </View>
+                </View>
+                <View className="flex-1 items-center">
+                  <Text className="text-white font-black text-lg italic">
+                    {profile?.total_ratings || 0}
+                  </Text>
+                  <Text className="text-gray-500 text-[10px] font-black uppercase">
+                    Reviews
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
         </View>
 
@@ -257,9 +267,11 @@ export default function Profile() {
         <View className="px-6 py-8">
           {allSections.map((section, idx) => (
             <View key={idx} className="mb-8">
-              <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 px-1">
-                {section.title}
-              </Text>
+              {section.title && section.title !== "Account" && (
+                <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 px-1">
+                  {section.title}
+                </Text>
+              )}
               <View className="bg-gray-50 rounded-[2.5rem] p-2 border border-gray-100">
                 {section.items.map((item, itemIdx) => (
                   <TouchableOpacity

@@ -15,6 +15,22 @@ export async function followUser(req, res, next) {
   }
 
   try {
+    // Block Check: Verify neither user is blocked by the other
+    const { data: blockCheck } = await supabase
+      .from("user_blocks")
+      .select("id")
+      .or(
+        `and(blocker_id.eq.${followerId},blocked_id.eq.${followingId}),and(blocker_id.eq.${followingId},blocked_id.eq.${followerId})`,
+      )
+      .maybeSingle();
+
+    if (blockCheck) {
+      return res.status(403).json({
+        success: false,
+        error: "You cannot follow this user due to privacy settings",
+      });
+    }
+
     const { error } = await supabase.rpc("follow_user", {
       follower: followerId,
       following: followingId,

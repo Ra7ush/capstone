@@ -35,6 +35,7 @@ export function useMessaging() {
   // Real-time listener
   useEffect(() => {
     if (!user?.id) return;
+    const typingTimeouts = typingTimeoutsRef.current;
 
     const channel = supabase
       .channel(`messaging_global_${user.id}`)
@@ -83,12 +84,26 @@ export function useMessaging() {
           }, 4000);
         }
       })
+      .on("broadcast", { event: "message_request" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["message-requests"] });
+        queryClient.invalidateQueries({
+          queryKey: ["message-requests-count"],
+        });
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      })
+      .on("broadcast", { event: "message_request_update" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["message-requests"] });
+        queryClient.invalidateQueries({
+          queryKey: ["message-requests-count"],
+        });
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
       supabase.removeChannel(notifChannel);
-      Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
+      Object.values(typingTimeouts).forEach(clearTimeout);
     };
   }, [queryClient, user?.id]);
 
@@ -108,10 +123,10 @@ export function useUnreadMessageCount() {
   const queryClient = useQueryClient();
   const conversations = queryClient.getQueryData<any[]>(["conversations"]);
   const unreadCount =
-    conversations?.reduce(
-      (total: number, conv: any) => total + (conv.unreadCount || 0),
-      0,
-    ) ?? 0;
+    conversations?.reduce((total: number, conv: any) => {
+      if ((conv.unreadCount || 0) > 0) return total + 1;
+      return total;
+    }, 0) ?? 0;
   return unreadCount;
 }
 
@@ -136,6 +151,8 @@ export function useMessageRequests() {
     },
     enabled: !!user?.id,
     staleTime: 0,
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
   });
 
   // Fetch pending request count
@@ -151,6 +168,67 @@ export function useMessageRequests() {
   });
 
   const requestCount = requestCountData ?? 0;
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`message-requests:${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "conversations" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["message-requests"] });
+          queryClient.invalidateQueries({
+            queryKey: ["message-requests-count"],
+          });
+          queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "conversations" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["message-requests"] });
+          queryClient.invalidateQueries({
+            queryKey: ["message-requests-count"],
+          });
+          queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "conversations" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["message-requests"] });
+          queryClient.invalidateQueries({
+            queryKey: ["message-requests-count"],
+          });
+          queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "conversation_participants",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["message-requests"] });
+          queryClient.invalidateQueries({
+            queryKey: ["message-requests-count"],
+          });
+          queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, queryClient]);
 
   // Accept mutation
   const acceptMutation = useMutation({
@@ -237,7 +315,6 @@ export function useChat(conversationId: string, userId?: string) {
     isFetchingNextPage: loadingMore,
     fetchNextPage,
     hasNextPage,
-    refetch: refetchMessages,
   } = useInfiniteQuery({
     queryKey: ["messages-v3", conversationId],
     queryFn: async ({ pageParam = 1 }) => {
@@ -271,21 +348,22 @@ export function useChat(conversationId: string, userId?: string) {
   });
 
   // Store page 1 to cache after successful fetch
+  const pageOne = data?.pages?.[0];
+  const pageOneMessages = pageOne?.messages;
+  const pageOneOtherUser = pageOne?.other_user;
   useEffect(() => {
-    if (data?.pages?.[0]?.messages && conversationId) {
-      const page1Messages = data.pages[0].messages;
-      const page1OtherUser = data.pages[0].other_user;
-      setCachedMessages(conversationId, page1Messages, page1OtherUser);
+    if (pageOneMessages && conversationId) {
+      setCachedMessages(conversationId, pageOneMessages, pageOneOtherUser);
     }
-  }, [data?.pages?.[0]?.messages, conversationId]);
+  }, [pageOneMessages, pageOneOtherUser, conversationId]);
 
   // Flatten all messages from all pages
   const messages = data?.pages?.flatMap((page: any) => page.messages) || [];
   // Use the other_user from the first page
-  const otherUser = data?.pages?.[0]?.other_user || null;
+  const otherUser = pageOneOtherUser || null;
   // Message request status
-  const requestStatus: string = data?.pages?.[0]?.request_status || "accepted";
-  const initiatedBy: string | null = data?.pages?.[0]?.initiated_by || null;
+  const requestStatus: string = pageOne?.request_status || "accepted";
+  const initiatedBy: string | null = pageOne?.initiated_by || null;
 
   // Real-time subscription
   useEffect(() => {

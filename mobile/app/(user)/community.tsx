@@ -13,7 +13,7 @@ import {
   Modal,
   FlatList,
 } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect, useCallback } from "react";
@@ -68,8 +68,7 @@ export default function UserCommunity() {
     });
 
   // Joined Communities Data
-  const { data: joinedData, isLoading: isJoinedLoading } =
-    useJoinedCommunities();
+  const { data: joinedData } = useJoinedCommunities();
 
   // Selected Community Detail Data
   const { data: detailData, isLoading: isDetailLoading } = useCommunityDetail(
@@ -511,7 +510,6 @@ export default function UserCommunity() {
   const joinedList = joinedData?.data || [];
   const discoverList = discoverData?.data || [];
   const activeCommunity = detailData?.data;
-  const feedPosts = feed || [];
   const isJoined = joinedList.some(
     (item) => (item.community?.id || item.community_id) === activeCommunityId,
   );
@@ -1020,7 +1018,9 @@ export default function UserCommunity() {
                                 ? "bg-gray-200"
                                 : item.join_request_status === "pending"
                                   ? "bg-amber-500"
-                                  : "bg-black"
+                                  : item.join_request_status === "rejected"
+                                    ? "bg-red-500"
+                                    : "bg-black"
                             }`}
                           >
                             <Text
@@ -1036,9 +1036,11 @@ export default function UserCommunity() {
                                 ? "Joined"
                                 : item.join_request_status === "pending"
                                   ? "Pending"
-                                  : item.privacy === "private"
-                                    ? "Request"
-                                    : "Join"}
+                                  : item.join_request_status === "rejected"
+                                    ? "Request Again"
+                                    : item.privacy === "private"
+                                      ? "Request"
+                                      : "Join"}
                             </Text>
                           </TouchableOpacity>
                         </View>
@@ -1337,7 +1339,7 @@ export default function UserCommunity() {
                         Join this community to post
                       </Text>
                       <Text className="text-gray-500 font-medium text-sm mt-1 text-center">
-                        See what's happening and share your own updates.
+                        See what is happening and share your own updates.
                       </Text>
                     </View>
                   )}

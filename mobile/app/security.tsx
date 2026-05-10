@@ -14,7 +14,6 @@ import { supabase } from "@/lib/supabase";
 import { useAuthState } from "@/hooks/useAuthState";
 import { useUser, useUpdateProfile } from "@/hooks/useProfile";
 import { useBlockedUsers } from "@/hooks/useBlocking";
-import { useBiometrics } from "@/hooks/useBiometrics";
 import { Input, Button } from "@/components/ui";
 import * as Linking from "expo-linking";
 import { useRef, useEffect } from "react";
@@ -122,30 +121,6 @@ export default function Security() {
     }
   };
 
-  const {
-    isSupported: isBiometricsSupported,
-    isEnrolled: isBiometricsEnrolled,
-    isEnabled: isBiometricsEnabled,
-    authType,
-    toggleBiometrics,
-  } = useBiometrics();
-
-  const getBiometricName = () => {
-    if (authType.includes(1)) return "FaceID"; // AuthenticationType.FACIAL_RECOGNITION
-    if (authType.includes(2)) return "TouchID/Fingerprint"; // AuthenticationType.FINGERPRINT
-    if (authType.includes(3)) return "Iris Scan"; // AuthenticationType.IRIS
-    return "Biometrics";
-  };
-
-  const getBiometricDescription = () => {
-    if (!isBiometricsSupported) return "Hardware not supported on this device.";
-    if (!isBiometricsEnrolled)
-      return `Please set up ${getBiometricName()} in your device settings first.`;
-    return `Use ${getBiometricName()} to secure your financial operations and access.`;
-  };
-
-  // Basic States for placeholders
-  const [dataSharing, setDataSharing] = useState(true);
 
   const handleChangePassword = async () => {
     if (user?.email) {
@@ -295,13 +270,6 @@ export default function Security() {
               `Blocked Creators (${blockedUsers?.length || 0})`,
               () => router.push("/blocked-users"),
             )}
-            {renderToggle(
-              "analytics-outline",
-              "Data Sharing",
-              "Contribute anonymous usage logs to help optimize the Nexus algorithm.",
-              dataSharing,
-              setDataSharing,
-            )}
           </View>
 
           <View className="mb-10">
@@ -315,22 +283,6 @@ export default function Security() {
               "key-outline",
               "Change Access Password",
               handleChangePassword,
-            )}
-
-            {renderToggle(
-              "finger-print-outline",
-              "Biometric Authentication",
-              getBiometricDescription(),
-              isBiometricsEnabled,
-              async (val) => {
-                const success = await toggleBiometrics(val);
-                if (!success && val) {
-                  Alert.alert(
-                    "Authentication Failed",
-                    "Could not verify identity.",
-                  );
-                }
-              },
             )}
 
             <TouchableOpacity
@@ -370,11 +322,6 @@ export default function Security() {
             <Text className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 px-2">
               Protocol Governance
             </Text>
-            {renderAction(
-              "phone-portrait-outline",
-              "Active Session Nodes",
-              () => {},
-            )}
             {renderAction(
               "trash-outline",
               "Terminate Account Ledger",

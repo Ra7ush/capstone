@@ -97,6 +97,10 @@ export const creatorApi = {
     const response = await api.get("/api/creator/activity");
     return response.data.data;
   },
+  withdraw: async () => {
+    const response = await api.post("/api/creator/withdraw");
+    return response.data;
+  },
 };
 
 export const communityApi = {
@@ -268,6 +272,29 @@ export const communityApi = {
     const response = await api.delete(
       `/api/community/posts/${postId}/comments/${commentId}`,
     );
+    return response.data;
+  },
+};
+
+// ============================================
+// Subscription API
+// ============================================
+
+export const subscriptionApi = {
+  getPlans: async () => {
+    const response = await api.get("/api/subscription/plans");
+    return response.data;
+  },
+  getMySubscription: async () => {
+    const response = await api.get("/api/subscription/me");
+    return response.data;
+  },
+  updatePlan: async (plan: "free" | "pro") => {
+    const response = await api.put("/api/subscription/plan", { plan });
+    return response.data;
+  },
+  cancel: async () => {
+    const response = await api.post("/api/subscription/cancel");
     return response.data;
   },
 };
@@ -645,6 +672,29 @@ export const reviewApi = {
     const response = await api.get(`/api/reviews/service/${serviceId}/mine`);
     return response.data;
   },
+
+  // Creator Ratings
+  createCreatorRating: async (data: {
+    creator_id: string;
+    rating: number;
+    review?: string;
+  }) => {
+    const response = await api.post("/api/reviews/creator", data);
+    return response.data;
+  },
+  getCreatorRatings: async (
+    creatorId: string,
+    params?: { page?: number; limit?: number },
+  ) => {
+    const response = await api.get(`/api/reviews/creator/${creatorId}`, {
+      params,
+    });
+    return response.data;
+  },
+  getMyCreatorRating: async (creatorId: string) => {
+    const response = await api.get(`/api/reviews/creator/${creatorId}/mine`);
+    return response.data;
+  },
 };
 
 export const reportApi = {
@@ -655,6 +705,51 @@ export const reportApi = {
     description?: string;
   }) => {
     const response = await api.post("/api/moderation/report", data);
+    return response.data;
+  },
+};
+
+// ============================================
+// AI API Endpoints
+// ============================================
+export const aiApi = {
+  /** 1. AI Course Recommendations */
+  getRecommendations: async () => {
+    const response = await api.get("/api/ai/recommendations");
+    return response.data;
+  },
+
+  /** 2. AI Chat Tutor */
+  chat: async (data: {
+    message: string;
+    courseTitle?: string;
+    courseDescription?: string;
+    lessonTitle?: string;
+    history?: { role: string; content: string }[];
+  }) => {
+    const response = await api.post("/api/ai/chat", data);
+    return response.data;
+  },
+
+  /** 3. AI Course Description Generator */
+  generateDescription: async (data: {
+    title: string;
+    category?: string;
+    keywords?: string;
+  }) => {
+    const response = await api.post("/api/ai/generate-description", data);
+    return response.data;
+  },
+
+  /** 4. AI Smart Search */
+  smartSearch: async (query: string) => {
+    const response = await api.post("/api/ai/smart-search", { query });
+    return response.data;
+  },
+
+  /** 5. AI Content Summarizer */
+  summarize: async (content: string, type?: "course" | "post") => {
+    const response = await api.post("/api/ai/summarize", { content, type });
     return response.data;
   },
 };

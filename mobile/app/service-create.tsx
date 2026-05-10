@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { useServiceManagement, uploadCourseImage } from "@/hooks/useServices";
+import { useAIGenerateDescription } from "@/hooks/useAI";
 
 const SERVICE_TYPES = ["course", "digital", "service", "physical"];
 const CATEGORIES = [
@@ -33,6 +34,7 @@ const CATEGORIES = [
 export default function CreateService() {
   const router = useRouter();
   const { createService, createModule, createLesson } = useServiceManagement();
+  const aiGenerate = useAIGenerateDescription();
 
   // Step state
   const [step, setStep] = useState(1);
@@ -352,7 +354,89 @@ export default function CreateService() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Description</Text>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Text style={styles.sectionLabel}>Description</Text>
+          <TouchableOpacity
+            onPress={async () => {
+              if (!title.trim()) {
+                Alert.alert(
+                  "Title Required",
+                  "Enter a course title first so AI can generate a description.",
+                );
+                return;
+              }
+              try {
+                const res = await aiGenerate.mutateAsync({ title, category });
+                if (res.data?.description) {
+                  setDescription(res.data.description);
+                }
+                if (res.data?.modules && res.data.modules.length > 0) {
+                  Alert.alert(
+                    "AI Suggestion",
+                    "Description generated! AI also suggested course modules. Would you like to use them?",
+                    [
+                      { text: "No Thanks", style: "cancel" },
+                      {
+                        text: "Use Modules",
+                        onPress: () => {
+                          const aiModules = res.data.modules.map(
+                            (m: any, idx: number) => ({
+                              tempId: `ai-${Date.now()}-${idx}`,
+                              title: m.title,
+                              lessons: (m.lessons || []).map(
+                                (l: string, lIdx: number) => ({
+                                  tempId: `ai-l-${Date.now()}-${idx}-${lIdx}`,
+                                  title: l,
+                                  description: "",
+                                  video_url: "",
+                                  is_preview: lIdx === 0,
+                                }),
+                              ),
+                            }),
+                          );
+                          setModules(aiModules);
+                        },
+                      },
+                    ],
+                  );
+                }
+              } catch {
+                Alert.alert("Error", "AI generation failed. Please try again.");
+              }
+            }}
+            disabled={aiGenerate.isPending}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#F3E8FF",
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 12,
+            }}
+          >
+            {aiGenerate.isPending ? (
+              <ActivityIndicator size="small" color="#7C3AED" />
+            ) : (
+              <Ionicons name="sparkles" size={14} color="#7C3AED" />
+            )}
+            <Text
+              style={{
+                color: "#7C3AED",
+                fontSize: 12,
+                fontWeight: "700",
+                marginLeft: 4,
+              }}
+            >
+              {aiGenerate.isPending ? "Generating..." : "AI Generate"}
+            </Text>
+          </TouchableOpacity>
+        </View>
         <TextInput
           placeholder="What will your audience learn..."
           multiline

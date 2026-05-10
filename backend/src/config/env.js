@@ -15,4 +15,5 @@ export const ENV = {
   // REDIS_PASSWORD: process.env.REDIS_PASSWORD,
   REDIS_DB: process.env.REDIS_DB,
   REDIS_TLS: process.env.REDIS_TLS,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
 };

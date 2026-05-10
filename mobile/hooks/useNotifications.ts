@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import {
   useQuery,
   useMutation,
@@ -27,6 +27,8 @@ export function useNotifications() {
   const queryClient = useQueryClient();
   const { session } = useAuthState();
   const userId = session?.user?.id;
+  const notificationsKey = useMemo(() => [NOTIFICATIONS_KEY, userId], [userId]);
+  const unreadKey = useMemo(() => [UNREAD_COUNT_KEY, userId], [userId]);
 
   // ──────────────────────────────────────────
   // Queries
@@ -34,7 +36,7 @@ export function useNotifications() {
 
   /** Paginated notification list */
   const notificationsQuery = useInfiniteQuery<NotificationsResponse>({
-    queryKey: [NOTIFICATIONS_KEY, userId],
+    queryKey: notificationsKey,
     queryFn: ({ pageParam }) =>
       notificationApi.getNotifications({
         page: pageParam as number,
@@ -45,11 +47,13 @@ export function useNotifications() {
       lastPage.hasMore ? lastPage.page + 1 : undefined,
     enabled: !!userId,
     staleTime: 1000 * 60 * 2, // 2 minutes
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
   });
 
   /** Unread notification count (for badge) */
   const unreadCountQuery = useQuery({
-    queryKey: [UNREAD_COUNT_KEY, userId],
+    queryKey: unreadKey,
     queryFn: async () => {
       const res = await notificationApi.getUnreadCount();
       return res.data.count;
@@ -67,107 +71,95 @@ export function useNotifications() {
     mutationFn: notificationApi.markAsRead,
     onMutate: async (notificationId) => {
       // Optimistic update
-      await queryClient.cancelQueries({ queryKey: [NOTIFICATIONS_KEY] });
-      await queryClient.cancelQueries({ queryKey: [UNREAD_COUNT_KEY] });
+      await queryClient.cancelQueries({ queryKey: notificationsKey });
+      await queryClient.cancelQueries({ queryKey: unreadKey });
 
-      queryClient.setQueriesData(
-        { queryKey: [NOTIFICATIONS_KEY] },
-        (old: any) => {
-          if (!old?.pages) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page: any) => ({
-              ...page,
-              data: page.data.map((n: Notification) =>
-                n.id === notificationId ? { ...n, is_read: true } : n,
-              ),
-            })),
-          };
-        },
-      );
+      queryClient.setQueriesData({ queryKey: notificationsKey }, (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            data: page.data.map((n: Notification) =>
+              n.id === notificationId ? { ...n, is_read: true } : n,
+            ),
+          })),
+        };
+      });
 
-      queryClient.setQueryData([UNREAD_COUNT_KEY], (old: number) =>
+      queryClient.setQueryData(unreadKey, (old: number) =>
         Math.max((old || 0) - 1, 0),
       );
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: [NOTIFICATIONS_KEY] });
-      queryClient.invalidateQueries({ queryKey: [UNREAD_COUNT_KEY] });
+      queryClient.invalidateQueries({ queryKey: notificationsKey });
+      queryClient.invalidateQueries({ queryKey: unreadKey });
     },
   });
 
   const markAllAsReadMutation = useMutation({
     mutationFn: notificationApi.markAllAsRead,
     onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: [NOTIFICATIONS_KEY] });
+      await queryClient.cancelQueries({ queryKey: notificationsKey });
 
-      queryClient.setQueriesData(
-        { queryKey: [NOTIFICATIONS_KEY] },
-        (old: any) => {
-          if (!old?.pages) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page: any) => ({
-              ...page,
-              data: page.data.map((n: Notification) => ({
-                ...n,
-                is_read: true,
-              })),
+      queryClient.setQueriesData({ queryKey: notificationsKey }, (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            data: page.data.map((n: Notification) => ({
+              ...n,
+              is_read: true,
             })),
-          };
-        },
-      );
+          })),
+        };
+      });
 
-      queryClient.setQueryData([UNREAD_COUNT_KEY], 0);
+      queryClient.setQueryData(unreadKey, 0);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: [NOTIFICATIONS_KEY] });
-      queryClient.invalidateQueries({ queryKey: [UNREAD_COUNT_KEY] });
+      queryClient.invalidateQueries({ queryKey: notificationsKey });
+      queryClient.invalidateQueries({ queryKey: unreadKey });
     },
   });
 
   const deleteNotificationMutation = useMutation({
     mutationFn: notificationApi.deleteNotification,
     onMutate: async (notificationId) => {
-      await queryClient.cancelQueries({ queryKey: [NOTIFICATIONS_KEY] });
+      await queryClient.cancelQueries({ queryKey: notificationsKey });
 
-      queryClient.setQueriesData(
-        { queryKey: [NOTIFICATIONS_KEY] },
-        (old: any) => {
-          if (!old?.pages) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page: any) => ({
-              ...page,
-              data: page.data.filter(
-                (n: Notification) => n.id !== notificationId,
-              ),
-            })),
-          };
-        },
-      );
+      queryClient.setQueriesData({ queryKey: notificationsKey }, (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            data: page.data.filter(
+              (n: Notification) => n.id !== notificationId,
+            ),
+          })),
+        };
+      });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: [NOTIFICATIONS_KEY] });
-      queryClient.invalidateQueries({ queryKey: [UNREAD_COUNT_KEY] });
+      queryClient.invalidateQueries({ queryKey: notificationsKey });
+      queryClient.invalidateQueries({ queryKey: unreadKey });
     },
   });
 
   const clearAllMutation = useMutation({
     mutationFn: notificationApi.clearAll,
     onMutate: async () => {
-      queryClient.setQueriesData(
-        { queryKey: [NOTIFICATIONS_KEY] },
-        (old: any) => {
-          if (!old?.pages) return old;
-          return { ...old, pages: [{ ...old.pages[0], data: [] }] };
-        },
-      );
-      queryClient.setQueryData([UNREAD_COUNT_KEY], 0);
+      queryClient.setQueriesData({ queryKey: notificationsKey }, (old: any) => {
+        if (!old?.pages) return old;
+        return { ...old, pages: [{ ...old.pages[0], data: [] }] };
+      });
+      queryClient.setQueryData(unreadKey, 0);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: [NOTIFICATIONS_KEY] });
-      queryClient.invalidateQueries({ queryKey: [UNREAD_COUNT_KEY] });
+      queryClient.invalidateQueries({ queryKey: notificationsKey });
+      queryClient.invalidateQueries({ queryKey: unreadKey });
     },
   });
 
@@ -178,45 +170,85 @@ export function useNotifications() {
   const handleNewNotification = useCallback(
     (payload: any) => {
       // Add the new notification to the top of the list
-      queryClient.setQueriesData(
-        { queryKey: [NOTIFICATIONS_KEY] },
-        (old: any) => {
-          if (!old?.pages) return old;
-          const firstPage = old.pages[0];
-          return {
-            ...old,
-            pages: [
-              { ...firstPage, data: [payload, ...firstPage.data] },
-              ...old.pages.slice(1),
-            ],
-          };
-        },
-      );
+      queryClient.setQueriesData({ queryKey: notificationsKey }, (old: any) => {
+        if (!old?.pages) return old;
+        const firstPage = old.pages[0];
+        return {
+          ...old,
+          pages: [
+            { ...firstPage, data: [payload, ...firstPage.data] },
+            ...old.pages.slice(1),
+          ],
+        };
+      });
 
       // Increment unread count
-      queryClient.setQueryData(
-        [UNREAD_COUNT_KEY],
-        (old: number) => (old || 0) + 1,
-      );
+      queryClient.setQueryData(unreadKey, (old: number) => (old || 0) + 1);
     },
-    [queryClient],
+    [queryClient, notificationsKey, unreadKey],
   );
 
   useEffect(() => {
     if (!userId) return;
 
-    // Subscribe to the user's personal notification channel
-    const channel = supabase
+    // Subscribe to the user's personal notification channel (broadcasts)
+    const broadcastChannel = supabase
       .channel(`notifications:${userId}`)
       .on("broadcast", { event: "new_notification" }, ({ payload }) => {
         handleNewNotification(payload);
       })
       .subscribe();
 
+    // Fallback: listen to DB inserts/updates directly
+    const dbChannel = supabase
+      .channel(`notifications-db:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          if (payload.new) {
+            handleNewNotification(payload.new);
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: notificationsKey });
+          queryClient.invalidateQueries({ queryKey: unreadKey });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: notificationsKey });
+          queryClient.invalidateQueries({ queryKey: unreadKey });
+        },
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(broadcastChannel);
+      supabase.removeChannel(dbChannel);
     };
-  }, [userId, handleNewNotification]);
+  }, [userId, handleNewNotification, notificationsKey, unreadKey, queryClient]);
 
   // ──────────────────────────────────────────
   // Derived Data

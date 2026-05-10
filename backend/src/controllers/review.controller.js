@@ -307,3 +307,140 @@ export async function getMyReview(req, res, next) {
     next(error);
   }
 }
+
+// ============================================
+// Creator Rating Controllers
+// ============================================
+
+/**
+ * Create or update a rating for a creator
+ * POST /api/reviews/creator
+ */
+export async function createCreatorRating(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const { creator_id, rating, review } = req.body;
+
+    if (!creator_id || !rating) {
+      return res
+        .status(400)
+        .json({ success: false, error: "creator_id and rating are required" });
+    }
+
+    if (rating < 1 || rating > 5) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Rating must be between 1 and 5" });
+    }
+
+    // Upsert the rating
+    const { data, error } = await supabase
+      .from("creator_ratings")
+      .upsert(
+        {
+          creator_id,
+          user_id: userId,
+          rating,
+          review: review || null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,creator_id,service_id" },
+      )
+      .select(
+        `
+        *,
+        user:users!creator_ratings_user_id_fkey(id, username, profile_image_url)
+      `,
+      )
+      .single();
+
+    if (error) throw error;
+
+    // Notify creator
+    if (creator_id !== userId) {
+      await createNotification({
+        userId: creator_id,
+        actorId: userId,
+        type: "system",
+        title: "New Instructor Rating",
+        body: `A student left you a ${rating}-star rating!`,
+        data: { rating_id: data.id },
+      });
+    }
+
+    res.status(201).json({ success: true, data });
+  } catch (error) {
+    logger.error("Create creator rating error:", error);
+    next(error);
+  }
+}
+
+/**
+ * Get ratings for a creator
+ * GET /api/reviews/creator/:creatorId
+ */
+export async function getCreatorRatings(req, res, next) {
+  try {
+    const { creatorId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    const { data, error, count } = await supabase
+      .from("creator_ratings")
+      .select(
+        `
+        *,
+        user:users!creator_ratings_user_id_fkey(id, username, profile_image_url)
+      `,
+        { count: "exact" },
+      )
+      .eq("creator_id", creatorId)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    res.status(200).json({
+      success: true,
+      data,
+      total: count || 0,
+      page,
+      limit,
+      hasMore: offset + limit < (count || 0),
+    });
+  } catch (error) {
+    logger.error("Get creator ratings error:", error);
+    next(error);
+  }
+}
+
+/**
+ * Get current user's rating for a creator
+ * GET /api/reviews/creator/:creatorId/mine
+ */
+export async function getMyCreatorRating(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const { creatorId } = req.params;
+
+    const { data, error } = await supabase
+      .from("creator_ratings")
+      .select(
+        `
+        *,
+        user:users!creator_ratings_user_id_fkey(id, username, profile_image_url)
+      `,
+      )
+      .eq("creator_id", creatorId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    logger.error("Get my creator rating error:", error);
+    next(error);
+  }
+}

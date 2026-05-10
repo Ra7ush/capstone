@@ -849,6 +849,8 @@ export function useJoinedCommunities() {
   return useQuery<{ success: boolean; data: CommunityMember[] }>({
     queryKey: ["communities", "joined"],
     queryFn: communityApi.getJoinedCommunities,
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 60 * 24, // 24 hours for persistence
   });
@@ -861,6 +863,8 @@ export function useDiscoverCommunities(params?: {
   return useQuery<{ success: boolean; data: Community[] }>({
     queryKey: ["communities", "discover", params?.category, params?.search],
     queryFn: () => communityApi.getDiscoverCommunities(params),
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // 30 minutes
   });

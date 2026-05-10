@@ -33,6 +33,8 @@ export async function blockUser(req, res, next) {
     // Invalidate affected caches
     await invalidatePattern(`profile:${blockerId}`);
     await invalidatePattern(`profile:${userId}`);
+    await invalidatePattern(`feed:*user:${blockerId}*`);
+    await invalidatePattern(`feed:*user:${userId}*`);
 
     return res
       .status(200)
@@ -60,6 +62,8 @@ export async function unblockUser(req, res, next) {
     // Invalidate affected caches
     await invalidatePattern(`profile:${blockerId}`);
     await invalidatePattern(`profile:${userId}`);
+    await invalidatePattern(`feed:*user:${blockerId}*`);
+    await invalidatePattern(`feed:*user:${userId}*`);
 
     return res
       .status(200)

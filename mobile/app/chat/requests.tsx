@@ -65,6 +65,7 @@ export default function MessageRequests() {
       console.error("Error accepting request:", error);
     } finally {
       setActionId(null);
+    }
   };
 
   const handleDecline = (conversationId: string, username: string) => {
@@ -196,8 +197,11 @@ export default function MessageRequests() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   className="flex-1 bg-gray-100 rounded-xl py-3 items-center"
-                   onPress={() =>
-                    handleDecline(conv.id, conv.other_user?.username || "this user")
+                  onPress={() =>
+                    handleDecline(
+                      conv.id,
+                      conv.other_user?.username || "this user",
+                    )
                   }
                   disabled={actionId === conv.id}
                 >

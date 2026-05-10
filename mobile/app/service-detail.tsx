@@ -31,6 +31,7 @@ import {
   ReviewSummary,
   ReviewForm,
 } from "@/components";
+import { useAISummarize } from "@/hooks/useAI";
 import type { CourseModule, Review } from "@/types";
 
 /**
@@ -68,6 +69,8 @@ export default function ServiceDetail() {
   const [expandedModules, setExpandedModules] = useState<Set<string>>(
     new Set(),
   );
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const aiSummarize = useAISummarize();
 
   const isPurchased = purchasedIds.includes(id || "");
   const currentUserId = session?.user?.id;
@@ -244,9 +247,25 @@ export default function ServiceDetail() {
               <Text className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">
                 Instructor
               </Text>
-              <Text className="text-black font-black text-lg">
+              <Text className="text-black font-black text-lg mb-2">
                 {service.creator?.username || "Creator"}
               </Text>
+              
+              {/* Instructor Reputation Stats Row */}
+              <View className="flex-row items-center gap-2">
+                <View className="flex-row items-center bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
+                  <Ionicons name="star" size={10} color="#F59E0B" />
+                  <Text className="text-amber-700 font-black text-[10px] ml-1">
+                    {(service.creator?.average_rating || 0).toFixed(1)}
+                  </Text>
+                </View>
+                <View className="flex-row items-center bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+                  <Ionicons name="chatbubbles-outline" size={10} color="#6B7280" />
+                  <Text className="text-gray-600 font-black text-[10px] ml-1">
+                    {service.creator?.total_ratings || 0} Reviews
+                  </Text>
+                </View>
+              </View>
             </View>
             <View className="w-8 h-8 rounded-full bg-white items-center justify-center">
               <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
@@ -274,12 +293,45 @@ export default function ServiceDetail() {
           {/* Description */}
           {service.description && (
             <View className="mb-6">
-              <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">
-                About This Course
-              </Text>
-              <Text className="text-gray-600 leading-6">
-                {service.description}
-              </Text>
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                  About This Course
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (aiSummary) {
+                      setAiSummary(null);
+                      return;
+                    }
+                    aiSummarize.mutate(
+                      { content: service.description!, type: "course" },
+                      { onSuccess: (res) => setAiSummary(res.data.summary) },
+                    );
+                  }}
+                  disabled={aiSummarize.isPending}
+                  className="flex-row items-center bg-purple-50 px-2.5 py-1.5 rounded-full"
+                >
+                  {aiSummarize.isPending ? (
+                    <ActivityIndicator size={12} color="#7C3AED" />
+                  ) : (
+                    <Ionicons name="sparkles" size={12} color="#7C3AED" />
+                  )}
+                  <Text className="text-purple-600 text-[10px] font-bold ml-1">
+                    {aiSummary ? "Show Full" : "AI Summary"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {aiSummary ? (
+                <View className="bg-purple-50 p-4 rounded-2xl border border-purple-100">
+                  <Text className="text-purple-900 leading-6 text-sm">
+                    {aiSummary}
+                  </Text>
+                </View>
+              ) : (
+                <Text className="text-gray-600 leading-6">
+                  {service.description}
+                </Text>
+              )}
             </View>
           )}
 

@@ -157,15 +157,30 @@ export async function getServiceById(req, res, next) {
         .json({ success: false, error: "Service not found" });
     }
 
-    // Manual join for creator
+    // Manual join for creator (Fetch from users + creators for rating)
     if (data && data.creator_id) {
-      const { data: creatorData } = await supabase
-        .from("users")
-        .select("id, username, profile_image_url")
-        .eq("id", data.creator_id)
-        .single();
+      const [uRes, cRes] = await Promise.all([
+        supabase
+          .from("users")
+          .select("id, username, profile_image_url")
+          .eq("id", data.creator_id)
+          .single(),
+        supabase
+          .from("creators")
+          .select("average_rating, total_ratings")
+          .eq("user_id", data.creator_id)
+          .maybeSingle(),
+      ]);
 
-      data.creator = creatorData || null;
+      if (uRes.data) {
+        data.creator = {
+          ...uRes.data,
+          average_rating: parseFloat(cRes.data?.average_rating || 0),
+          total_ratings: parseInt(cRes.data?.total_ratings || 0),
+        };
+      } else {
+        data.creator = null;
+      }
     }
 
     // Sort modules and lessons by order_index

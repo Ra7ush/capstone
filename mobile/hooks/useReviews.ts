@@ -172,3 +172,59 @@ export function useDeleteReview(serviceId: string) {
     },
   });
 }
+
+// ============================================
+// Creator Rating Hooks
+// ============================================
+
+export function useCreatorRatings(creatorId: string | undefined) {
+  return useInfiniteQuery<ReviewsResponse>({
+    queryKey: ["reviews", "creator", creatorId],
+    queryFn: async ({ pageParam }) => {
+      if (!creatorId) throw new Error("Creator ID required");
+      const response = await reviewApi.getCreatorRatings(creatorId, {
+        page: pageParam as number,
+        limit: 10,
+      });
+      return response as ReviewsResponse;
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? lastPage.page + 1 : undefined,
+    enabled: !!creatorId,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useMyCreatorRating(creatorId: string | undefined) {
+  return useQuery<Review | null>({
+    queryKey: ["reviews", "creator", "mine", creatorId],
+    queryFn: async () => {
+      if (!creatorId) throw new Error("Creator ID required");
+      const response = await reviewApi.getMyCreatorRating(creatorId);
+      return (response.data as Review) || null;
+    },
+    enabled: !!creatorId,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useCreateCreatorRating() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { creator_id: string; rating: number; review?: string }) =>
+      reviewApi.createCreatorRating(data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["reviews", "creator", variables.creator_id],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["reviews", "creator", "mine", variables.creator_id],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["creator", "profile", variables.creator_id],
+      });
+    },
+  });
+}

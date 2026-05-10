@@ -6,6 +6,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Image,
+  Alert,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -15,6 +16,7 @@ import { supabase } from "@/lib/supabase";
 import {
   useCreatorStats,
   useRecentActivity,
+  useWithdraw,
   ActivityItem,
 } from "@/hooks/useCreator";
 import { useJoinedCommunities } from "@/hooks/useCommunity";
@@ -40,11 +42,31 @@ export default function Home() {
   const { data: myServicesResponse, refetch: refetchMyServices } =
     useMyServices();
   const { data: activities, refetch: refetchActivity } = useRecentActivity();
+  const withdraw = useWithdraw();
   const { data: joinedData, refetch: refetchJoinedCommunities } =
     useJoinedCommunities();
   const { unreadCount } = useNotifications();
   const meta = myServicesResponse?.meta;
   const [refreshing, setRefreshing] = useState(false);
+
+  const handleWithdraw = () => {
+    if (!stats || stats.wallet_balance <= 0) {
+      Alert.alert("Error", "No funds available to withdraw");
+      return;
+    }
+
+    Alert.alert(
+      "Confirm Withdrawal",
+      `Are you sure you want to withdraw $${stats.wallet_balance.toFixed(2)}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Withdraw",
+          onPress: () => withdraw.mutate(),
+        },
+      ],
+    );
+  };
 
   // Prioritize hook data (dbUser) over auth state, but fallback to authUser
   const profile = dbUser || authUser?.profile;
@@ -293,8 +315,16 @@ export default function Home() {
               </Text>
 
               <View className="flex-row items-center mt-6 pt-6 border-t border-white/10">
-                <TouchableOpacity className="flex-1 bg-white/10 py-3 rounded-2xl items-center mr-2">
-                  <Text className="text-white font-bold text-sm">Withdraw</Text>
+                <TouchableOpacity 
+                  onPress={handleWithdraw}
+                  disabled={withdraw.isPending}
+                  className="flex-1 bg-white/10 py-3 rounded-2xl items-center mr-2"
+                >
+                  {withdraw.isPending ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <Text className="text-white font-bold text-sm">Withdraw</Text>
+                  )}
                 </TouchableOpacity>
                 <TouchableOpacity className="flex-1 bg-[#FF4D00] py-3 rounded-2xl items-center ml-2">
                   <Text className="text-white font-bold text-sm">Insights</Text>

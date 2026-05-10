@@ -11,6 +11,7 @@ import Health from "./pages/Health";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import { Toaster } from "react-hot-toast";
+import { login } from "./lib/api";
 
 function ProtectedRoute({ children, session }) {
   if (session === undefined)
@@ -40,6 +41,28 @@ function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const verifyAdmin = async () => {
+      if (!session) return;
+
+      const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+      if (!adminEmail || session.user?.email !== adminEmail) {
+        await supabase.auth.signOut();
+        setSession(null);
+        return;
+      }
+
+      try {
+        await login.VerifyAdmin();
+      } catch {
+        await supabase.auth.signOut();
+        setSession(null);
+      }
+    };
+
+    void verifyAdmin();
+  }, [session]);
 
   return (
     <>
