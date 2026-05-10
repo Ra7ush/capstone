@@ -32,6 +32,37 @@ export async function auth(req, res, next) {
 
     // Attach user to request
     req.user = user;
+
+    // ── SECURITY: Check Banned/Suspended Status ──
+    // Even if the JWT is valid, we check our database status
+    const { data: userProfile, error: profileError } = await supabase
+      .from("users")
+      .select("status")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError || !userProfile) {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized: User record not found.",
+      });
+    }
+
+    if (userProfile.status === "banned") {
+      return res.status(403).json({
+        success: false,
+        error:
+          "Your account has been permanently banned for violating our terms.",
+      });
+    }
+
+    if (userProfile.status === "suspended") {
+      return res.status(403).json({
+        success: false,
+        error: "Your account is temporarily suspended. Please contact support.",
+      });
+    }
+
     next();
   } catch (error) {
     console.error("Auth middleware error:", error);

@@ -24,15 +24,19 @@ CREATE INDEX IF NOT EXISTS idx_creator_ratings_service_id ON creator_ratings(ser
 ALTER TABLE creator_ratings ENABLE ROW LEVEL SECURITY;
 
 -- Policies
+DROP POLICY IF EXISTS "Users can view all ratings" ON creator_ratings;
 CREATE POLICY "Users can view all ratings" ON creator_ratings
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can create ratings" ON creator_ratings;
 CREATE POLICY "Users can create ratings" ON creator_ratings
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own ratings" ON creator_ratings;
 CREATE POLICY "Users can update their own ratings" ON creator_ratings
   FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own ratings" ON creator_ratings;
 CREATE POLICY "Users can delete their own ratings" ON creator_ratings
   FOR DELETE USING (auth.uid() = user_id);
 
@@ -42,6 +46,7 @@ ADD COLUMN IF NOT EXISTS average_rating DECIMAL(2,1) DEFAULT 0,
 ADD COLUMN IF NOT EXISTS total_ratings INTEGER DEFAULT 0;
 
 -- Function to update creator rating stats when a rating is added/updated/deleted
+-- Aggregates from both creator_ratings (general/direct) and service_reviews (course-specific)
 CREATE OR REPLACE FUNCTION update_creator_rating_stats()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -50,19 +55,32 @@ DECLARE
   v_count INTEGER;
 BEGIN
   -- Determine which creator_id to update
-  IF TG_OP = 'DELETE' THEN
-    v_creator_id := OLD.creator_id;
+  IF TG_TABLE_NAME = 'service_reviews' THEN
+    -- For service_reviews, we need to find the creator_id via the services table
+    SELECT creator_id INTO v_creator_id FROM services WHERE id = (CASE WHEN TG_OP = 'DELETE' THEN OLD.service_id ELSE NEW.service_id END);
   ELSE
-    v_creator_id := NEW.creator_id;
+    -- For creator_ratings, it's direct
+    v_creator_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.creator_id ELSE NEW.creator_id END;
   END IF;
 
-  -- Calculate new average and count
+  IF v_creator_id IS NULL THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  -- Calculate new average and count by UNIONing results from both tables
+  WITH all_ratings AS (
+    SELECT rating FROM creator_ratings WHERE creator_id = v_creator_id
+    UNION ALL
+    SELECT sr.rating
+    FROM service_reviews sr
+    JOIN services s ON sr.service_id = s.id
+    WHERE s.creator_id = v_creator_id
+  )
   SELECT
     COALESCE(ROUND(AVG(rating)::numeric, 1), 0),
     COALESCE(COUNT(*), 0)
   INTO v_avg, v_count
-  FROM creator_ratings
-  WHERE creator_id = v_creator_id;
+  FROM all_ratings;
 
   -- Update creators table
   UPDATE creators
@@ -76,7 +94,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Triggers to automatically update stats
+-- Triggers for creator_ratings (Keep existing or recreate)
 DROP TRIGGER IF EXISTS tr_update_creator_rating_on_insert ON creator_ratings;
 CREATE TRIGGER tr_update_creator_rating_on_insert
   AFTER INSERT ON creator_ratings
@@ -90,4 +108,20 @@ CREATE TRIGGER tr_update_creator_rating_on_update
 DROP TRIGGER IF EXISTS tr_update_creator_rating_on_delete ON creator_ratings;
 CREATE TRIGGER tr_update_creator_rating_on_delete
   AFTER DELETE ON creator_ratings
+  FOR EACH ROW EXECUTE FUNCTION update_creator_rating_stats();
+
+-- Add triggers to service_reviews to also update the instructor's aggregate rating
+DROP TRIGGER IF EXISTS tr_update_creator_on_service_review_insert ON service_reviews;
+CREATE TRIGGER tr_update_creator_on_service_review_insert
+  AFTER INSERT ON service_reviews
+  FOR EACH ROW EXECUTE FUNCTION update_creator_rating_stats();
+
+DROP TRIGGER IF EXISTS tr_update_creator_on_service_review_update ON service_reviews;
+CREATE TRIGGER tr_update_creator_on_service_review_update
+  AFTER UPDATE ON service_reviews
+  FOR EACH ROW EXECUTE FUNCTION update_creator_rating_stats();
+
+DROP TRIGGER IF EXISTS tr_update_creator_on_service_review_delete ON service_reviews;
+CREATE TRIGGER tr_update_creator_on_service_review_delete
+  AFTER DELETE ON service_reviews
   FOR EACH ROW EXECUTE FUNCTION update_creator_rating_stats();

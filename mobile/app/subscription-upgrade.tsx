@@ -11,6 +11,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInUp, FadeInRight } from "react-native-reanimated";
+import { subscriptionApi } from "@/lib/api";
 
 const BENEFITS = [
   {
@@ -58,14 +59,42 @@ const PRICING = {
 export default function SubscriptionUpgrade() {
   const router = useRouter();
   const [isYearly, setIsYearly] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentPrice = isYearly ? PRICING.yearly : PRICING.monthly;
 
   const handleSubscribe = () => {
+    if (isSubmitting) return;
+
     Alert.alert(
-      "Subscribe to Pro",
-      `You are about to subscribe to the ${isYearly ? "Annual" : "Monthly"} Pro Plan. Payment gateway integration coming soon!`,
-      [{ text: "Great!", style: "default" }],
+      "Confirm Pro Upgrade",
+      `You are about to upgrade to the ${isYearly ? "Annual" : "Monthly"} Pro Plan. Continue?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          style: "default",
+          onPress: async () => {
+            try {
+              setIsSubmitting(true);
+              await subscriptionApi.updatePlan("pro");
+              Alert.alert(
+                "Upgrade Complete",
+                "You're now on the Pro plan. Enjoy unlimited publishing!",
+                [{ text: "Done", onPress: () => router.back() }],
+              );
+            } catch (error: any) {
+              const message =
+                error?.response?.data?.error ||
+                error?.message ||
+                "Upgrade failed. Please try again.";
+              Alert.alert("Upgrade Failed", message);
+            } finally {
+              setIsSubmitting(false);
+            }
+          },
+        },
+      ],
     );
   };
 
@@ -202,10 +231,13 @@ export default function SubscriptionUpgrade() {
         <View className="absolute bottom-0 left-0 right-0 p-6 bg-black/80 backdrop-blur-md border-t border-white/10">
           <TouchableOpacity
             onPress={handleSubscribe}
-            className="bg-[#FF4D00] py-5 rounded-[2rem] items-center shadow-xl shadow-[#FF4D00]/20"
+            disabled={isSubmitting}
+            className={`py-5 rounded-[2rem] items-center shadow-xl shadow-[#FF4D00]/20 ${
+              isSubmitting ? "bg-[#FF4D00]/60" : "bg-[#FF4D00]"
+            }`}
           >
             <Text className="text-white font-black text-lg uppercase tracking-widest">
-              Upgrade to Pro
+              {isSubmitting ? "Upgrading..." : "Upgrade to Pro"}
             </Text>
           </TouchableOpacity>
           <Text className="text-gray-500 text-[10px] font-bold text-center mt-4 uppercase">

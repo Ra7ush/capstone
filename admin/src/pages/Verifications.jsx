@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import axiosInstance from "../lib/axios";
 import {
   CheckCircle2,
   XCircle,
@@ -41,7 +40,7 @@ function Verifications() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-100">
         <span className="loading loading-spinner loading-lg text-black"></span>
       </div>
     );
@@ -97,7 +96,7 @@ function Verifications() {
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                   ID Front
                 </p>
-                <div className="aspect-[4/3] bg-gray-50 rounded-2xl overflow-hidden border border-gray-100">
+                <div className="aspect-4/3 bg-gray-50 rounded-2xl overflow-hidden border border-gray-100">
                   <img
                     src={req.id_front_url}
                     className="w-full h-full object-cover"
@@ -109,7 +108,7 @@ function Verifications() {
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                   Selfie Check
                 </p>
-                <div className="aspect-[4/3] bg-gray-50 rounded-2xl overflow-hidden border border-gray-100">
+                <div className="aspect-4/3 bg-gray-50 rounded-2xl overflow-hidden border border-gray-100">
                   <img
                     src={req.selfie_url}
                     className="w-full h-full object-cover"
@@ -128,7 +127,7 @@ function Verifications() {
               </button>
               <button
                 onClick={() =>
-                  statusMutation.mutate({ id: req.id, status: "approved" })
+                  statusMutation.mutate({ id: req.id, status: "verified" })
                 }
                 className="w-14 h-14 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center hover:bg-green-100 transition-all border border-green-100"
               >
@@ -260,7 +259,7 @@ function Verifications() {
                                   {handle} <ExternalLink size={10} />
                                 </a>
                               </div>
-                            )
+                            ),
                         )}
                       {selectedRequest.portfolio_url && (
                         <div className="flex justify-between pt-1">
@@ -287,7 +286,7 @@ function Verifications() {
                       {!selectedRequest.portfolio_url &&
                         (!selectedRequest.social_links ||
                           Object.values(selectedRequest.social_links).every(
-                            (v) => !v
+                            (v) => !v,
                           )) && (
                           <p className="text-[10px] font-bold text-gray-400 uppercase text-center py-2">
                             No links provided
@@ -300,7 +299,7 @@ function Verifications() {
                     <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                       <ShieldCheck size={14} /> Selfie Analysis
                     </h3>
-                    <div className="bg-gray-100 rounded-[2rem] aspect-square overflow-hidden border-4 border-white shadow-xl">
+                    <div className="bg-gray-100 rounded-4xl aspect-square overflow-hidden border-4 border-white shadow-xl">
                       <img
                         src={selectedRequest.selfie_url}
                         className="w-full h-full object-cover"
@@ -316,7 +315,7 @@ function Verifications() {
                       <p>National Identity Card</p>
                     </h3>
                     <div className="space-y-4">
-                      <div className="bg-gray-100 rounded-[2rem] aspect-[3/2] overflow-hidden border-4 border-white shadow-lg relative">
+                      <div className="bg-gray-100 rounded-4xl aspect-3/2 overflow-hidden border-4 border-white shadow-lg relative">
                         <img
                           src={selectedRequest.id_front_url}
                           className="w-full h-full object-cover"
@@ -327,7 +326,7 @@ function Verifications() {
                         </div>
                       </div>
                       {selectedRequest.id_back_url && (
-                        <div className="bg-gray-100 rounded-[2rem] aspect-[3/2] overflow-hidden border-4 border-white shadow-lg relative">
+                        <div className="bg-gray-100 rounded-4xl aspect-3/2 overflow-hidden border-4 border-white shadow-lg relative">
                           <img
                             src={selectedRequest.id_back_url}
                             className="w-full h-full object-cover"
@@ -361,10 +360,10 @@ function Verifications() {
                 onClick={() =>
                   statusMutation.mutate({
                     id: selectedRequest.id,
-                    status: "approved",
+                    status: "verified",
                   })
                 }
-                className="flex-[2] h-16 rounded-[1.25rem] bg-black text-white font-black text-xs uppercase tracking-widest hover:bg-gray-900 transition-all shadow-xl flex items-center justify-center gap-2"
+                className="flex-2 h-16 rounded-[1.25rem] bg-black text-white font-black text-xs uppercase tracking-widest hover:bg-gray-900 transition-all shadow-xl flex items-center justify-center gap-2"
               >
                 <CheckCircle2 size={18} className="text-[#FF4D00]" /> Approve
                 Identity

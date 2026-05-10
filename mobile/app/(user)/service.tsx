@@ -13,6 +13,7 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useMemo, useEffect } from "react";
 import { useAllServices, usePurchasedServiceIds } from "@/hooks/useServices";
+import { useAISmartSearch } from "@/hooks/useAI";
 import { StarRating } from "@/components";
 import type { Service } from "@/types";
 
@@ -42,6 +43,9 @@ export default function UserServices() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [aiSearchEnabled, setAiSearchEnabled] = useState(false);
+  const [aiResults, setAiResults] = useState<Service[] | null>(null);
+  const aiSmartSearch = useAISmartSearch();
 
   // Debounce search input
   useEffect(() => {
@@ -213,27 +217,70 @@ export default function UserServices() {
         <View className="bg-gray-50 flex-row items-center px-4 py-3 rounded-2xl border border-gray-100">
           <Ionicons name="search" size={20} color="#9CA3AF" />
           <TextInput
-            placeholder="Search courses..."
+            placeholder={
+              aiSearchEnabled
+                ? "Ask AI: e.g. 'I want to learn design'"
+                : "Search courses..."
+            }
             placeholderTextColor="#9CA3AF"
             className="flex-1 ml-3 text-black font-medium"
             value={search}
             onChangeText={(text) => {
               setSearch(text);
-              // Debounce
-              // setTimeout(() => setDebouncedSearch(text), 300);
+              if (!aiSearchEnabled) {
+                // Normal text search — clear AI results
+                setAiResults(null);
+              }
             }}
+            onSubmitEditing={() => {
+              if (aiSearchEnabled && search.trim()) {
+                aiSmartSearch.mutate(search.trim(), {
+                  onSuccess: (res) => setAiResults(res.data || []),
+                });
+              }
+            }}
+            returnKeyType={aiSearchEnabled ? "search" : "done"}
           />
           {search.length > 0 && (
             <TouchableOpacity
               onPress={() => {
                 setSearch("");
                 setDebouncedSearch("");
+                setAiResults(null);
               }}
             >
               <Ionicons name="close-circle" size={20} color="#9CA3AF" />
             </TouchableOpacity>
           )}
+          <TouchableOpacity
+            onPress={() => {
+              setAiSearchEnabled(!aiSearchEnabled);
+              setAiResults(null);
+            }}
+            className={`ml-2 w-9 h-9 rounded-full items-center justify-center ${
+              aiSearchEnabled ? "bg-purple-100" : "bg-gray-100"
+            }`}
+          >
+            <Ionicons
+              name="sparkles"
+              size={16}
+              color={aiSearchEnabled ? "#7C3AED" : "#9CA3AF"}
+            />
+          </TouchableOpacity>
         </View>
+        {aiSearchEnabled && (
+          <Text className="text-[11px] text-purple-500 font-medium mt-1.5 ml-1">
+            AI Search enabled — type naturally and press search
+          </Text>
+        )}
+        {aiSmartSearch.isPending && (
+          <View className="flex-row items-center mt-2 ml-1">
+            <ActivityIndicator size="small" color="#7C3AED" />
+            <Text className="text-purple-500 text-xs font-medium ml-2">
+              AI is searching...
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Category Pills */}
@@ -285,58 +332,101 @@ export default function UserServices() {
         {/* Content */}
         {!isLoading && (
           <View className="px-5 pb-8">
-            {/* My Courses Section */}
-            {purchasedServices.length > 0 && (
-              <View className="mb-8">
+            {/* AI Search Results */}
+            {aiResults !== null ? (
+              <View>
                 <View className="flex-row items-center justify-between mb-4">
-                  <Text className="text-xs font-black text-gray-400 uppercase tracking-widest">
-                    My Courses
-                  </Text>
-                  <View className="bg-green-100 px-2 py-1 rounded-full">
-                    <Text className="text-green-600 text-[10px] font-black">
-                      {purchasedServices.length} Owned
+                  <View className="flex-row items-center">
+                    <Ionicons name="sparkles" size={14} color="#7C3AED" />
+                    <Text className="text-xs font-black text-purple-500 uppercase tracking-widest ml-1.5">
+                      AI Results
                     </Text>
                   </View>
+                  <Text className="text-gray-400 text-[10px] font-bold">
+                    {aiResults.length} found
+                  </Text>
                 </View>
-                <View className="flex-row flex-wrap justify-between">
-                  {purchasedServices.map((service: Service) =>
-                    renderServiceCard(service, true),
-                  )}
-                </View>
-              </View>
-            )}
-
-            {/* Available Courses */}
-            <View>
-              {purchasedServices.length > 0 && (
-                <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">
-                  Browse More
-                </Text>
-              )}
-              <View className="flex-row flex-wrap justify-between">
-                {availableServices.map((service: Service) =>
-                  renderServiceCard(service, false),
+                {aiResults.length > 0 ? (
+                  <View className="flex-row flex-wrap justify-between">
+                    {aiResults.map((service: Service) =>
+                      renderServiceCard(
+                        service,
+                        purchasedIds.includes(service.id),
+                      ),
+                    )}
+                  </View>
+                ) : (
+                  <View className="items-center py-12">
+                    <Ionicons name="search-outline" size={40} color="#D1D5DB" />
+                    <Text className="text-gray-400 font-bold mt-3">
+                      No courses match your query
+                    </Text>
+                    <Text className="text-gray-300 text-xs mt-1">
+                      Try rephrasing your search
+                    </Text>
+                  </View>
                 )}
               </View>
-            </View>
+            ) : (
+              <>
+                {/* My Courses Section */}
+                {purchasedServices.length > 0 && (
+                  <View className="mb-8">
+                    <View className="flex-row items-center justify-between mb-4">
+                      <Text className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                        My Courses
+                      </Text>
+                      <View className="bg-green-100 px-2 py-1 rounded-full">
+                        <Text className="text-green-600 text-[10px] font-black">
+                          {purchasedServices.length} Owned
+                        </Text>
+                      </View>
+                    </View>
+                    <View className="flex-row flex-wrap justify-between">
+                      {purchasedServices.map((service: Service) =>
+                        renderServiceCard(service, true),
+                      )}
+                    </View>
+                  </View>
+                )}
 
-            {/* Empty State */}
-            {displayedServices.length === 0 && !isLoading && (
-              <View className="items-center justify-center py-20">
-                <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center mb-6">
-                  <Ionicons name="school-outline" size={40} color="#9CA3AF" />
+                {/* Available Courses */}
+                <View>
+                  {purchasedServices.length > 0 && (
+                    <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">
+                      Browse More
+                    </Text>
+                  )}
+                  <View className="flex-row flex-wrap justify-between">
+                    {availableServices.map((service: Service) =>
+                      renderServiceCard(service, false),
+                    )}
+                  </View>
                 </View>
-                <Text className="text-xl font-bold text-black text-center mb-2">
-                  {search ? "No Results" : "No Courses Yet"}
-                </Text>
-                <Text className="text-gray-400 text-center px-8">
-                  {search
-                    ? `No courses match "${search}"`
-                    : activeCategory !== "All"
-                      ? `No ${activeCategory} courses available yet`
-                      : "Check back soon for new courses from creators"}
-                </Text>
-              </View>
+
+                {/* Empty State */}
+                {displayedServices.length === 0 && !isLoading && (
+                  <View className="items-center justify-center py-20">
+                    <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center mb-6">
+                      <Ionicons
+                        name="school-outline"
+                        size={40}
+                        color="#9CA3AF"
+                      />
+                    </View>
+                    <Text className="text-xl font-bold text-black text-center mb-2">
+                      {search ? "No Results" : "No Courses Yet"}
+                    </Text>
+                    <Text className="text-gray-400 text-center px-8">
+                      {search
+                        ? `No courses match "${search}"`
+                        : activeCategory !== "All"
+                          ? `No ${activeCategory} courses available yet`
+                          : "Check back soon for new courses from creators"}
+                    </Text>
+                  </View>
+                )}
+              </>
             )}
           </View>
         )}

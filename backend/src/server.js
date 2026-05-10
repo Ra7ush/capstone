@@ -17,6 +17,8 @@ import blockRouter from "./routes/block.route.js";
 import notificationRouter from "./routes/notification.route.js";
 import reviewRouter from "./routes/review.route.js";
 import reportRouter from "./routes/report.route.js";
+import aiRouter from "./routes/ai.route.js";
+import subscriptionRouter from "./routes/subscription.route.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
 import { setupRealtimeSync } from "./config/realtimeSync.js";
 import { logger } from "./config/logger.js";
@@ -53,10 +55,12 @@ app.use((req, res, next) => {
 // Security headers (XSS protection, CSP, etc.)
 app.use(helmet());
 
+const isProduction = ENV.NODE_ENV === "production";
+
 // Rate limiting - general API protection
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 1000 requests per windowMs (Higher for proactive sync)
+  max: isProduction ? 1000 : 10000, // higher limit for local development
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -68,7 +72,7 @@ const generalLimiter = rateLimit({
 // Stricter rate limiting for auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Only 5 login attempts per 15 minutes
+  max: isProduction ? 5 : 1000, // Only 5 login attempts per 15 minutes in prod
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -121,6 +125,9 @@ app.use("/api/service", serviceRouter);
 // Purchase routes
 app.use("/api/purchase", purchaseRouter);
 
+// Subscription routes
+app.use("/api/subscription", subscriptionRouter);
+
 // Block routes
 app.use("/api/block", blockRouter);
 
@@ -132,6 +139,9 @@ app.use("/api/reviews", reviewRouter);
 
 // Report/Moderation routes
 app.use("/api/moderation", reportRouter);
+
+// AI routes
+app.use("/api/ai", aiRouter);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

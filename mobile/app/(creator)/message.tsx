@@ -20,6 +20,7 @@ import { useState, useRef } from "react";
 import { useMessaging, useMessageRequests } from "../../hooks/useMessaging";
 import { usePresence } from "../../hooks/usePresence";
 import { profileApi, messageApi } from "../../lib/api";
+import { LinearGradient } from "expo-linear-gradient";
 
 function SearchModal({
   visible,
@@ -262,6 +263,43 @@ export default function Message() {
           />
         </View>
       </View>
+
+      {/* Pinned My AI Row */}
+      <TouchableOpacity
+        className="flex-row items-center px-5 py-3 border-b border-gray-100"
+        onPress={() => router.push("/chat/ai" as any)}
+        activeOpacity={0.7}
+      >
+        <View className="relative">
+          <LinearGradient
+            colors={["#7C3AED", "#9333EA", "#6D28D9"]}
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="sparkles" size={24} color="white" />
+          </LinearGradient>
+          <View className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-white items-center justify-center">
+            <View className="w-3 h-3 rounded-full bg-green-500" />
+          </View>
+        </View>
+        <View className="flex-1 ml-4 justify-center">
+          <View className="flex-row items-center mb-0.5">
+            <Text className="text-[16px] font-black text-black">My AI</Text>
+            <View className="bg-purple-100 px-1.5 py-0.5 rounded-full ml-2">
+              <Text className="text-purple-600 text-[9px] font-black">AI</Text>
+            </View>
+          </View>
+          <Text className="text-[14px] text-gray-400 font-medium">
+            Ask me anything...
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color="#D1D5DB" />
+      </TouchableOpacity>
 
       <ScrollView
         className="flex-1"

@@ -123,6 +123,8 @@ export interface Service {
     username: string;
     profile_image_url?: string | null;
     avatar_url?: string | null;
+    average_rating?: number;
+    total_ratings?: number;
   };
   modules?: CourseModule[];
   resources?: CourseResource[];

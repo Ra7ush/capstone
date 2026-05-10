@@ -5,8 +5,27 @@ import { logger } from "../config/logger.js";
 export async function getProfile(req, res, next) {
   try {
     const { id } = req.params;
+    const currentUserId = req.user?.id;
     const cacheKey = `profile:${id}`;
     logger.debug(`[getProfile] id=${id} cacheKey=${cacheKey}`);
+
+    // 1. Block Check (Don't check if viewing self)
+    if (currentUserId && id !== currentUserId) {
+      const { data: blockCheck } = await supabase
+        .from("user_blocks")
+        .select("id")
+        .or(
+          `and(blocker_id.eq.${currentUserId},blocked_id.eq.${id}),and(blocker_id.eq.${id},blocked_id.eq.${currentUserId})`,
+        )
+        .maybeSingle();
+
+      if (blockCheck) {
+        return res.status(403).json({
+          success: false,
+          error: "This profile is unavailable due to privacy settings",
+        });
+      }
+    }
 
     const data = await getOrSet(
       cacheKey,
@@ -43,6 +62,8 @@ export async function getProfile(req, res, next) {
       data.bio = data.creators.bio;
       data.verification_status = data.creators.verification_status;
       data.category = data.creators.category;
+      data.average_rating = data.creators.average_rating;
+      data.total_ratings = data.creators.total_ratings;
     }
 
     logger.debug(`[getProfile] Returning profile for id=${id}`);

@@ -13,7 +13,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { useService, usePurchasedServiceIds } from "@/hooks/useServices";
 import { useAuth } from "@/context/AuthContext";
+import AIChatModal from "@/components/AIChatModal";
 import type { CourseModule, Lesson } from "@/types";
+import YoutubePlayer from "react-native-youtube-iframe";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+function getYoutubeId(url: string) {
+  if (!url) return null;
+  // Handle standard and mobile watch URLs
+  const regExp =
+    /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  if (match && match[2].length === 11) return match[2];
+
+  // Handle YouTube Shorts
+  const shortsMatch = url.match(/shorts\/([0-9A-Za-z_-]{11})/);
+  if (shortsMatch) return shortsMatch[1];
+
+  return null;
+}
 
 /**
  * Course Learn Screen — Learner-focused view
@@ -21,6 +39,7 @@ import type { CourseModule, Lesson } from "@/types";
  */
 export default function CourseLearn() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuth();
   const { data: service, isLoading } = useService(id!);
@@ -34,6 +53,7 @@ export default function CourseLearn() {
     new Set(),
   );
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
+  const [showAIChat, setShowAIChat] = useState(false);
 
   const toggleModule = (moduleId: string) => {
     setExpandedModules((prev) => {
@@ -120,26 +140,45 @@ export default function CourseLearn() {
         <StatusBar style="light" />
 
         {/* Video / Content Area */}
-        <View className="w-full h-56 bg-black items-center justify-center">
+        <View 
+          className="w-full bg-black min-h-[210px] items-center justify-center"
+          style={{ paddingTop: insets.top + 20 }}
+        >
           {activeLesson.video_url ? (
-            <>
-              <Ionicons name="play-circle" size={64} color="white" />
-              <Text className="text-white/70 text-xs font-medium mt-2">
-                Tap to play video
-              </Text>
-              <TouchableOpacity
-                className="absolute inset-0 items-center justify-center"
-                onPress={() => {
-                  if (activeLesson.video_url) {
-                    Linking.openURL(activeLesson.video_url).catch((err) =>
-                      console.warn("Could not open video URL:", err),
-                    );
-                  }
-                }}
-              />
-            </>
+            (() => {
+              const videoId = getYoutubeId(activeLesson.video_url);
+              if (videoId) {
+                return (
+                  <View className="w-full">
+                    <YoutubePlayer
+                      height={210}
+                      play={true}
+                      videoId={videoId}
+                    />
+                  </View>
+                );
+              }
+              return (
+                <View className="items-center justify-center">
+                  <Ionicons name="play-circle" size={64} color="white" />
+                  <Text className="text-white/70 text-xs font-medium mt-2">
+                    Tap to play video
+                  </Text>
+                  <TouchableOpacity
+                    className="absolute inset-0 items-center justify-center"
+                    onPress={() => {
+                      if (activeLesson.video_url) {
+                        Linking.openURL(activeLesson.video_url).catch((err) =>
+                          console.warn("Could not open video URL:", err),
+                        );
+                      }
+                    }}
+                  />
+                </View>
+              );
+            })()
           ) : (
-            <>
+            <View className="items-center justify-center">
               <Ionicons
                 name="document-text-outline"
                 size={48}
@@ -148,13 +187,13 @@ export default function CourseLearn() {
               <Text className="text-gray-500 text-xs font-medium mt-2">
                 No video for this lesson
               </Text>
-            </>
+            </View>
           )}
 
           {/* Back button overlay */}
           <TouchableOpacity
             onPress={() => setActiveLesson(null)}
-            className="absolute top-14 left-5 w-10 h-10 rounded-full bg-white/20 items-center justify-center"
+            className="absolute top-12 left-5 w-10 h-10 rounded-full bg-black/40 items-center justify-center z-50"
           >
             <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
@@ -413,6 +452,23 @@ export default function CourseLearn() {
           </View>
         </View>
       </ScrollView>
+
+      {/* AI Tutor Floating Button */}
+      <TouchableOpacity
+        onPress={() => setShowAIChat(true)}
+        className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-purple-600 items-center justify-center shadow-lg"
+        style={{ elevation: 8 }}
+      >
+        <Ionicons name="sparkles" size={24} color="white" />
+      </TouchableOpacity>
+
+      {/* AI Chat Modal */}
+      <AIChatModal
+        visible={showAIChat}
+        onClose={() => setShowAIChat(false)}
+        courseTitle={service.title}
+        courseDescription={service.description || undefined}
+      />
     </View>
   );
 }

@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Platform,
   ActionSheetIOS,
+  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -143,12 +144,34 @@ export default function VerificationApply() {
 
   const pickFromCamera = async (type: "front" | "back" | "selfie") => {
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status, canAskAgain } =
+        await ImagePicker.requestCameraPermissionsAsync();
+
       if (status !== "granted") {
-        Alert.alert(
-          "Permission Required",
-          "Camera access is needed for verification.",
-        );
+        if (!canAskAgain) {
+          Alert.alert(
+            "Permission Required",
+            "Camera access was permanently denied. Please enable it in your phone settings to complete verification.",
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Open Settings",
+                onPress: () => {
+                  if (Platform.OS === "ios") {
+                    Linking.openURL("app-settings:");
+                  } else {
+                    Linking.openSettings();
+                  }
+                },
+              },
+            ],
+          );
+        } else {
+          Alert.alert(
+            "Permission Required",
+            "Camera access is needed for verification. Please grant permission when prompted.",
+          );
+        }
         return;
       }
 
@@ -365,6 +388,13 @@ export default function VerificationApply() {
       <ScrollView className="flex-1 px-6">
         <View className="py-8 pb-32">
           {/* Header */}
+          <TouchableOpacity
+            onPress={() => router.replace("/(creator)")}
+            className="w-12 h-12 bg-white/5 rounded-full items-center justify-center mb-6 border border-white/10"
+          >
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
+
           <View className="mb-8">
             <Text className="text-4xl font-black text-white italic tracking-tighter">
               Identity<Text className="text-[#FF4D00]">Check</Text>
@@ -373,6 +403,18 @@ export default function VerificationApply() {
               Kurdistan Region Creator Portal
             </Text>
           </View>
+
+          {verificationStatus === "rejected" && (
+            <View className="mb-6 rounded-3xl border border-red-500/40 bg-red-500/10 p-5">
+              <Text className="text-red-300 font-black text-sm mb-2">
+                Verification Rejected
+              </Text>
+              <Text className="text-red-200/80 text-xs leading-5 font-bold">
+                Your previous submission was rejected. Please update your
+                documents and resubmit below.
+              </Text>
+            </View>
+          )}
 
           {renderProgress()}
 

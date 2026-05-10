@@ -58,6 +58,19 @@ export async function submitVerification(req, res, next) {
 
     if (error) throw error;
 
+    // 4. Mark creator as pending so UI shows "Under Review"
+    const { error: statusError } = await supabase
+      .from("creators")
+      .update({ verification_status: "pending", verified_at: null })
+      .eq("user_id", userId);
+
+    if (statusError) {
+      logger.error(
+        "Failed to update creator verification status:",
+        statusError,
+      );
+    }
+
     res.status(201).json({
       success: true,
       message: "Verification request submitted successfully",
@@ -287,7 +300,7 @@ export async function getCreatorStats(req, res, next) {
           logger.warn("Error fetching followers count:", followersError);
         }
 
-        // 4. Calculate monthly revenue (completed payouts this month)
+        // 4. Calculate monthly revenue (Total earned/pending from sales this month)
         const startOfMonth = new Date();
         startOfMonth.setDate(1);
         startOfMonth.setHours(0, 0, 0, 0);
@@ -296,7 +309,7 @@ export async function getCreatorStats(req, res, next) {
           .from("payouts")
           .select("amount")
           .eq("creator_id", creator.user_id)
-          .eq("status", "completed")
+          .in("status", ["pending", "processing", "paid", "completed"])
           .gte("created_at", startOfMonth.toISOString());
 
         let monthlyRevenue = 0;
@@ -569,6 +582,51 @@ export async function getRecentActivity(req, res, next) {
     res.status(200).json({
       success: true,
       data: activity,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Withdraw funds (Simulated)
+ */
+export async function withdrawFunds(req, res, next) {
+  try {
+    const userId = req.user.id;
+
+    // 1. Get current balance
+    const { data: creator, error: fetchError } = await supabase
+      .from("creators")
+      .select("wallet_balance")
+      .eq("user_id", userId)
+      .single();
+
+    if (fetchError || !creator) {
+      return res.status(404).json({ success: false, error: "Creator not found" });
+    }
+
+    const amount = parseFloat(creator.wallet_balance || 0);
+
+    if (amount <= 0) {
+      return res.status(400).json({ success: false, error: "No funds available to withdraw" });
+    }
+
+    // 2. Reset balance
+    const { error: updateError } = await supabase
+      .from("creators")
+      .update({ wallet_balance: 0 })
+      .eq("user_id", userId);
+
+    if (updateError) throw updateError;
+
+    // 3. Clear cache
+    await invalidatePattern(`creator_stats:${userId}`);
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully withdrawn $${amount.toFixed(2)}`,
+      withdrawnAmount: amount,
     });
   } catch (error) {
     next(error);

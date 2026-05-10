@@ -97,26 +97,11 @@ export default function Profile() {
           label: "Personal Information",
           route: "/profile-edit?mode=full",
         },
-        {
-          icon: "star-outline",
-          label: "My Subscriptions",
-          route: "/subscriptions",
-        },
-        {
-          icon: "wallet-outline",
-          label: "Payment Methods",
-          route: "/payments",
-        },
       ],
     },
     {
       title: "Settings",
       items: [
-        {
-          icon: "settings-outline",
-          label: "Advanced Settings",
-          route: "/advanced-settings",
-        },
         {
           icon: "notifications-outline",
           label: "Notifications",
@@ -168,11 +153,6 @@ export default function Profile() {
                   : profile?.verification_status === "verified"
                     ? "text-green-500"
                     : undefined,
-            },
-            {
-              icon: "trending-up-outline",
-              label: "Analytics & Earnings",
-              route: "/advanced-settings", // Placeholder for now
             },
           ],
         }
@@ -278,11 +258,13 @@ export default function Profile() {
 
         {/* Setting Groups */}
         <View className="px-6 py-8">
-          {allSections.map((section, idx) => (
+          {allSections.filter(s => s && s.items.length > 0).map((section, idx) => (
             <View key={idx} className="mb-8">
-              <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 px-1">
-                {section.title}
-              </Text>
+              {section.title && section.title !== "Account" && (
+                <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 px-1">
+                  {section.title}
+                </Text>
+              )}
               <View className="bg-gray-50 rounded-[2.5rem] p-2 border border-gray-100">
                 {section.items.map((item, itemIdx) => (
                   <TouchableOpacity

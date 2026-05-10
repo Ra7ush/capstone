@@ -13,6 +13,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useCreatorProfile } from "@/hooks/useProfile";
 import { useAllServices, usePurchasedServiceIds } from "@/hooks/useServices";
 import { useStartConversation } from "@/hooks/useMessaging";
+import { useAuth } from "@/context/AuthContext";
+import {
+  useCreatorRatings,
+  useMyCreatorRating,
+  useCreateCreatorRating,
+} from "@/hooks/useReviews";
+import { ReviewForm, ReviewItem, StarRating } from "@/components";
+import { useState } from "react";
 import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
 
 /**
@@ -27,6 +35,7 @@ import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
 export default function CreatorProfile() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { session } = useAuth();
   const { data: creator, isLoading: isLoadingProfile } = useCreatorProfile(id!);
   const { data: services, isLoading: isLoadingServices } = useAllServices(
     undefined,
@@ -35,6 +44,19 @@ export default function CreatorProfile() {
   );
   const { data: purchasedIds = [] } = usePurchasedServiceIds();
   const startConversation = useStartConversation();
+
+  // Rating hooks
+  const {
+    data: ratingsData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useCreatorRatings(id);
+  const { data: myRating } = useMyCreatorRating(id);
+  const createRating = useCreateCreatorRating();
+
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const allRatings = ratingsData?.pages.flatMap((page) => page.data) || [];
 
   const handleInitiateContact = async () => {
     if (!id) return;
@@ -177,7 +199,7 @@ export default function CreatorProfile() {
           >
             <View className="flex-1 items-center border-r border-white/10">
               <Text className="text-white font-black text-xl italic">
-                {creator.total_ratings || 0}
+                {services?.length || 0}
               </Text>
               <Text className="text-gray-500 text-[10px] font-black uppercase tracking-tighter mt-1">
                 Protocols
@@ -185,9 +207,9 @@ export default function CreatorProfile() {
             </View>
             <View className="flex-1 items-center border-r border-white/10">
               <Text className="text-white font-black text-xl italic">
-                {creator.average_rating
+                {creator.average_rating > 0
                   ? creator.average_rating.toFixed(1)
-                  : "4.9"}
+                  : "0.0"}
               </Text>
               <View className="flex-row items-center mt-1">
                 <Ionicons name="star" size={10} color="#FBBF24" />
@@ -198,10 +220,10 @@ export default function CreatorProfile() {
             </View>
             <View className="flex-1 items-center">
               <Text className="text-white font-black text-xl italic">
-                {services?.length || 0}
+                {creator.total_ratings || 0}
               </Text>
               <Text className="text-gray-500 text-[10px] font-black uppercase tracking-tighter mt-1">
-                Services
+                Reviews
               </Text>
             </View>
           </Animated.View>
@@ -327,6 +349,91 @@ export default function CreatorProfile() {
                 />
                 <Text className="text-gray-400 font-bold mt-3 text-center">
                   No published artifacts in this repository yet.
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Instructor Reviews Section */}
+          <View className="mt-12">
+            <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">
+              Instructor Reviews
+            </Text>
+
+            {/* Write a Review Form */}
+            {id !== session?.user?.id && (
+              <View className="mb-8">
+                {!showReviewForm && !myRating ? (
+                  <TouchableOpacity
+                    onPress={() => setShowReviewForm(true)}
+                    className="bg-black py-4 rounded-3xl items-center flex-row justify-center border border-white/10"
+                  >
+                    <Ionicons name="star-outline" size={18} color="#fff" />
+                    <Text className="text-white font-black text-[10px] uppercase tracking-widest ml-2">
+                      Rate Instructor
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                    <Text className="text-black font-black text-xs mb-4 uppercase italic">
+                      {myRating ? "Update Your Feedback" : "System Feedback"}
+                    </Text>
+                    <ReviewForm
+                      existingReview={myRating}
+                      onSubmit={(data) => {
+                        createRating.mutate({
+                          creator_id: id!,
+                          rating: data.rating,
+                          review: data.review_text,
+                        });
+                        setShowReviewForm(false);
+                      }}
+                      isSubmitting={createRating.isPending}
+                    />
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Ratings List */}
+            {allRatings.length > 0 ? (
+              <View>
+                {allRatings.map((rating: any) => (
+                  <ReviewItem
+                    key={rating.id}
+                    review={{
+                      ...rating,
+                      review_text: rating.review, // Map field name differences
+                    }}
+                    currentUserId={session?.user?.id}
+                  />
+                ))}
+
+                {hasNextPage && (
+                  <TouchableOpacity
+                    onPress={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="py-6 items-center"
+                  >
+                    {isFetchingNextPage ? (
+                      <ActivityIndicator size="small" color="#000" />
+                    ) : (
+                      <Text className="text-black font-black text-[10px] uppercase tracking-widest">
+                        Access More Logs
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <View className="items-center py-10 bg-gray-50 rounded-3xl border border-gray-100">
+                <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={32}
+                  color="#D1D5DB"
+                />
+                <Text className="text-gray-400 font-bold mt-3 text-xs">
+                  No public feedback logs yet.
                 </Text>
               </View>
             )}

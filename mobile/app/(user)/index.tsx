@@ -17,6 +17,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useAllServices, usePurchasedServiceIds } from "@/hooks/useServices";
 import { useSuggestedCreators } from "@/hooks/useFollow";
 import { useJoinedCommunities, type Community } from "@/hooks/useCommunity";
+import { useAIRecommendations } from "@/hooks/useAI";
 import type { Service } from "@/types";
 
 /**
@@ -52,6 +53,13 @@ export default function UserHome() {
   } = useSuggestedCreators(8);
   const { data: joinedData, refetch: refetchCommunities } =
     useJoinedCommunities();
+  const {
+    data: aiRecommendations,
+    isLoading: loadingRecommendations,
+    isFetched: recommendationsFetched,
+    isError: recommendationsError,
+    refetch: refetchRecommendations,
+  } = useAIRecommendations();
 
   // Derived data
   const purchasedCourses = useMemo(() => {
@@ -76,13 +84,18 @@ export default function UserHome() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
+      const promises: Promise<any>[] = [
         refetchUser(),
         refetchServices(),
         refetchPurchased(),
         refetchCreators(),
         refetchCommunities(),
-      ]);
+      ];
+      // Only refetch AI recommendations if they've been loaded before
+      if (recommendationsFetched) {
+        promises.push(refetchRecommendations());
+      }
+      await Promise.all(promises);
     } finally {
       setRefreshing(false);
     }
@@ -262,6 +275,95 @@ export default function UserHome() {
             />
           )}
         </View>
+
+        {/* ── AI Recommended For You ── */}
+        {aiRecommendations && aiRecommendations.length > 0 ? (
+          <View className="mb-6 mt-2">
+            <View className="flex-row items-center justify-between px-6 mb-3">
+              <View className="flex-row items-center">
+                <Ionicons name="sparkles" size={14} color="#7C3AED" />
+                <Text className="text-base font-black text-black ml-1.5">
+                  Recommended For You
+                </Text>
+              </View>
+              <View className="bg-purple-50 px-2 py-1 rounded-full">
+                <Text className="text-purple-600 text-[10px] font-bold">
+                  AI
+                </Text>
+              </View>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 24, gap: 14 }}
+            >
+              {aiRecommendations.map((course: Service) => (
+                <TouchableOpacity
+                  key={course.id}
+                  className="w-60 bg-purple-50 rounded-2xl overflow-hidden border border-purple-100"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/service-detail",
+                      params: { id: course.id },
+                    } as any)
+                  }
+                >
+                  {course.thumbnail_url ? (
+                    <Image
+                      source={{ uri: course.thumbnail_url }}
+                      className="w-full h-32"
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View className="w-full h-32 bg-purple-100 items-center justify-center">
+                      <Ionicons name="sparkles" size={32} color="#7C3AED" />
+                    </View>
+                  )}
+                  <View className="p-3">
+                    <Text
+                      className="text-sm font-bold text-black"
+                      numberOfLines={2}
+                    >
+                      {course.title}
+                    </Text>
+                    <View className="flex-row items-center justify-between mt-2">
+                      <View className="flex-row items-center">
+                        <Ionicons name="star" size={12} color="#FBBF24" />
+                        <Text className="text-xs font-bold text-black ml-1">
+                          {course.average_rating?.toFixed(1) || "New"}
+                        </Text>
+                      </View>
+                      <Text className="text-sm font-black text-black">
+                        {course.price ? `$${course.price}` : "Free"}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        ) : (
+          <View className="mb-6 mt-2 px-6">
+            <TouchableOpacity
+              className="flex-row items-center justify-center bg-purple-50 border border-purple-200 rounded-2xl py-4 px-6"
+              onPress={() => refetchRecommendations()}
+              disabled={loadingRecommendations}
+            >
+              {loadingRecommendations ? (
+                <ActivityIndicator size="small" color="#7C3AED" />
+              ) : (
+                <>
+                  <Ionicons name="sparkles" size={16} color="#7C3AED" />
+                  <Text className="text-purple-700 font-bold text-sm ml-2">
+                    {recommendationsError
+                      ? "Retry AI Recommendations"
+                      : "Get AI Course Recommendations"}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ── Section 3: Trending Courses ── */}
         <View className="mb-6">

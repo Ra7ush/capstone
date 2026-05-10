@@ -38,6 +38,13 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow NexusHub to access your photos for identification and posts.",
+          "cameraPermission": "Allow NexusHub to use your camera for identity verification and taking photos."
+        }
       ]
     ],
     "experiments": {

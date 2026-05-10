@@ -112,36 +112,17 @@ export default function TabsLayout() {
         name="message"
         options={{
           title: "Message",
+          tabBarBadge: unreadMessages > 0 ? unreadMessages : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: "#EF4444",
+            color: "#FFFFFF",
+            fontSize: 10,
+            fontWeight: "700",
+            minWidth: 18,
+            height: 18,
+          },
           tabBarIcon: ({ color, size }) => (
-            <View>
-              <Ionicons name="chatbubble" size={size} color={color} />
-              {unreadMessages > 0 && (
-                <View
-                  style={{
-                    position: "absolute",
-                    top: -4,
-                    right: -8,
-                    backgroundColor: "#EF4444",
-                    borderRadius: 10,
-                    minWidth: 18,
-                    height: 18,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    paddingHorizontal: 4,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: "#FFFFFF",
-                      fontSize: 10,
-                      fontWeight: "700",
-                    }}
-                  >
-                    {unreadMessages > 99 ? "99+" : unreadMessages}
-                  </Text>
-                </View>
-              )}
-            </View>
+            <Ionicons name="chatbubble" size={size} color={color} />
           ),
         }}
       />
