@@ -698,7 +698,8 @@ export async function likePost(req, res, next) {
       if (blockCheck) {
         return res.status(403).json({
           success: false,
-          error: "You cannot interact with this content due to privacy settings",
+          error:
+            "You cannot interact with this content due to privacy settings",
         });
       }
     }
@@ -933,7 +934,8 @@ export async function addComment(req, res, next) {
       if (blockCheck) {
         return res.status(403).json({
           success: false,
-          error: "You cannot interact with this content due to privacy settings",
+          error:
+            "You cannot interact with this content due to privacy settings",
         });
       }
     }
@@ -1326,9 +1328,7 @@ export async function editComment(req, res, next) {
 //   }
 // }
 
-// ============================================
 // Join Request Functions (Private Communities)
-// ============================================
 
 export async function requestToJoin(req, res, next) {
   try {
@@ -1436,12 +1436,12 @@ export async function requestToJoin(req, res, next) {
         .single();
 
       if (insertError) throw insertError;
-      // Store for notification
+      // we can store it for notification
       if (newRequest)
         existingRequest = { id: newRequest.id, status: "pending" };
     }
 
-    // Get the request ID for the notification
+    // Get the request ID for the notification == Safety net
     let requestId = existingRequest?.id;
     if (!requestId) {
       const { data: latestReq } = await supabase
