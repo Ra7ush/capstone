@@ -2,15 +2,15 @@
 
 ## Stack Overview
 
-| Layer | Technology | Notes |
-|---|---|---|
-| Backend | Node.js / Express | Port `3000`, also serves admin dashboard |
-| Admin Dashboard | React + Vite | Built to `admin/dist/`, served by Express in production |
-| Database | Supabase (cloud) | No self-hosting needed |
-| Cache | Redis | Self-hosted on the same VM |
-| Process manager | PM2 | Keeps backend alive, auto-restarts on crash |
-| Web server | Nginx | Reverse proxy + SSL termination |
-| CI/CD | GitHub Actions | Auto-deploys on every push to `main` |
+| Layer           | Technology        | Notes                                                   |
+| --------------- | ----------------- | ------------------------------------------------------- |
+| Backend         | Node.js / Express | Port `3000`, also serves admin dashboard                |
+| Admin Dashboard | React + Vite      | Built to `admin/dist/`, served by Express in production |
+| Database        | Supabase (cloud)  | No self-hosting needed                                  |
+| Cache           | Redis             | Self-hosted on the same VM                              |
+| Process manager | PM2               | Keeps backend alive, auto-restarts on crash             |
+| Web server      | Nginx             | Reverse proxy + SSL termination                         |
+| CI/CD           | GitHub Actions    | Auto-deploys on every push to `main`                    |
 
 ---
 
@@ -18,12 +18,12 @@
 
 Minimum recommended specs for a capstone demo:
 
-| Resource | Minimum |
-|---|---|
-| OS | Ubuntu 22.04 LTS |
-| vCPU | 1 |
-| RAM | 1 GB |
-| Disk | 20 GB SSD |
+| Resource | Minimum          |
+| -------- | ---------------- |
+| OS       | Ubuntu 22.04 LTS |
+| vCPU     | 1                |
+| RAM      | 1 GB             |
+| Disk     | 20 GB SSD        |
 
 **Recommended providers:** DigitalOcean ($6/mo droplet), Hetzner CX11 (~€4/mo), AWS t3.micro (free tier), Oracle Cloud (always-free tier).
 
@@ -287,7 +287,7 @@ Your app is now reachable at `http://yourdomain.com`.
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
 
-sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+sudo certbot --nginx -d api.hubnexus.tech -d www.api.hubnexus.tech
 ```
 
 Certbot automatically edits your Nginx config to handle HTTPS and redirect HTTP → HTTPS.
@@ -320,6 +320,7 @@ ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/capstone_deploy -N ""
 ```
 
 This creates two files:
+
 - `~/.ssh/capstone_deploy` — **private key** (goes into GitHub)
 - `~/.ssh/capstone_deploy.pub` — **public key** (goes onto the server)
 
@@ -327,7 +328,7 @@ This creates two files:
 
 ```bash
 # On the server, as the deploy user
-echo "PASTE_YOUR_PUBLIC_KEY_HERE" >> ~/.ssh/authorized_keys
+echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKU8R36mEycrP/4BmbYfvSidSINGw4DKGlF9Elorz/ZH github-actions-deploy" >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 ```
 
@@ -335,12 +336,12 @@ chmod 600 ~/.ssh/authorized_keys
 
 Go to your repo → **Settings → Secrets and variables → Actions → New repository secret**:
 
-| Secret Name | Value |
-|---|---|
-| `SERVER_HOST` | Your server's public IP or domain |
-| `SERVER_USER` | `deploy` |
+| Secret Name      | Value                                                   |
+| ---------------- | ------------------------------------------------------- |
+| `SERVER_HOST`    | Your server's public IP or domain                       |
+| `SERVER_USER`    | `deploy`                                                |
 | `SERVER_SSH_KEY` | Full contents of `~/.ssh/capstone_deploy` (private key) |
-| `SERVER_PORT` | `22` |
+| `SERVER_PORT`    | `22`                                                    |
 
 ### Step 4 — Allow passwordless Nginx reload
 
@@ -372,10 +373,10 @@ Go to **GitHub → Actions tab** and watch the workflow run live. ✅
 
 In your domain registrar's DNS settings, add:
 
-| Type | Name | Value | TTL |
-|---|---|---|---|
-| `A` | `@` | `YOUR_SERVER_IP` | Auto |
-| `A` | `www` | `YOUR_SERVER_IP` | Auto |
+| Type | Name  | Value            | TTL  |
+| ---- | ----- | ---------------- | ---- |
+| `A`  | `@`   | `YOUR_SERVER_IP` | Auto |
+| `A`  | `www` | `YOUR_SERVER_IP` | Auto |
 
 DNS propagation typically takes 1–30 minutes.
 
