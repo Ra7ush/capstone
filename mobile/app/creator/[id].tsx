@@ -22,6 +22,11 @@ import {
 import { ReviewForm, ReviewItem, StarRating } from "@/components";
 import { useState } from "react";
 import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
+import {
+  useDiscoverCommunities,
+  useCommunity,
+  useRequestToJoin,
+} from "@/hooks/useCommunity";
 
 /**
  * Public Creator Profile Screen
@@ -55,6 +60,13 @@ export default function CreatorProfile() {
   const { data: myRating } = useMyCreatorRating(id);
   const createRating = useCreateCreatorRating();
 
+  // Community Hooks
+  const { data: discoverData, isLoading: isLoadingCommunity } =
+    useDiscoverCommunities({ creator_id: id });
+  const creatorCommunity = discoverData?.data?.[0]; // Assume 1 main community per creator
+  const { joinCommunity } = useCommunity();
+  const requestToJoin = useRequestToJoin();
+
   const [showReviewForm, setShowReviewForm] = useState(false);
   const allRatings = ratingsData?.pages.flatMap((page) => page.data) || [];
 
@@ -76,6 +88,24 @@ export default function CreatorProfile() {
       }
     } catch (error) {
       console.error("Error initiating contact:", error);
+    }
+  };
+
+  const handleJoinCommunity = async (community: any) => {
+    try {
+      if (community.privacy === "private") {
+        await requestToJoin.mutateAsync({ communityId: community.id });
+        alert("Join request sent securely to the community administrators.");
+      } else {
+        await joinCommunity(community.id);
+        alert(`Successfully joined ${community.name}!`);
+      }
+    } catch (error: any) {
+      alert(
+        error.message ||
+          error.response?.data?.error ||
+          "Failed to join community.",
+      );
     }
   };
 
@@ -353,6 +383,124 @@ export default function CreatorProfile() {
               </View>
             )}
           </View>
+
+          {/* Instructor Community Section */}
+          {!isLoadingCommunity && creatorCommunity && (
+            <View className="mt-12">
+              <Text className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">
+                Exclusive Community
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (!creatorCommunity.is_joined) {
+                    handleJoinCommunity(creatorCommunity);
+                  } else {
+                    router.navigate("/(user)/community"); // Redirect to communities tab
+                  }
+                }}
+                className="bg-white rounded-[32px] overflow-hidden border border-gray-100 shadow-sm"
+              >
+                <View className="h-40 bg-gray-100">
+                  {creatorCommunity.banner_url ? (
+                    <Image
+                      source={{ uri: creatorCommunity.banner_url }}
+                      className="w-full h-full"
+                    />
+                  ) : (
+                    <View
+                      className="w-full h-full items-center justify-center"
+                      style={{ backgroundColor: "rgba(255, 77, 0, 0.1)" }}
+                    >
+                      <Ionicons name="people" size={60} color="#FF4D00" />
+                    </View>
+                  )}
+                  <View className="absolute top-4 left-4 flex-row gap-2">
+                    <View
+                      className="px-3 py-1.5 rounded-xl"
+                      style={{ backgroundColor: "rgba(255, 255, 255, 0.9)" }}
+                    >
+                      <Text className="text-[10px] font-black text-[#FF4D00] uppercase tracking-widest">
+                        {creatorCommunity.category}
+                      </Text>
+                    </View>
+                    <View
+                      className="px-3 py-1.5 rounded-xl flex-row items-center"
+                      style={{ backgroundColor: "rgba(0, 0, 0, 0.8)" }}
+                    >
+                      <Ionicons
+                        name={
+                          creatorCommunity.privacy === "private"
+                            ? "lock-closed"
+                            : "globe"
+                        }
+                        size={10}
+                        color="white"
+                      />
+                      <Text className="text-[10px] font-black text-white uppercase tracking-widest ml-1.5">
+                        {creatorCommunity.privacy}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View className="p-6">
+                  <View className="flex-row justify-between items-start">
+                    <View className="flex-1 mr-4">
+                      <Text
+                        className="text-2xl font-black text-black leading-7"
+                        numberOfLines={1}
+                      >
+                        {creatorCommunity.name}
+                      </Text>
+                      <Text className="text-gray-400 font-black text-xs mt-1 tracking-tighter uppercase">
+                        {creatorCommunity.members_count} member
+                        {creatorCommunity.members_count !== 1 ? "s" : ""}
+                      </Text>
+                    </View>
+                    <View
+                      className={`px-5 py-2.5 rounded-xl shadow-lg border ${
+                        creatorCommunity.is_joined
+                          ? "bg-gray-100 border-gray-200"
+                          : creatorCommunity.join_request_status === "pending"
+                            ? "bg-amber-50 border-amber-200"
+                            : creatorCommunity.join_request_status === "rejected"
+                              ? "bg-red-50 border-red-200"
+                              : "bg-black border-black"
+                      }`}
+                    >
+                      <Text
+                        className={`font-black uppercase tracking-widest text-[10px] ${
+                          creatorCommunity.is_joined
+                            ? "text-gray-500"
+                            : creatorCommunity.join_request_status === "pending"
+                              ? "text-amber-600"
+                              : creatorCommunity.join_request_status === "rejected"
+                                ? "text-red-500"
+                                : "text-white"
+                        }`}
+                      >
+                        {creatorCommunity.is_joined
+                          ? "Joined"
+                          : creatorCommunity.join_request_status === "pending"
+                            ? "Requested"
+                            : creatorCommunity.join_request_status === "rejected"
+                              ? "Rejected"
+                              : "Join"}
+                      </Text>
+                    </View>
+                  </View>
+                  {creatorCommunity.description && (
+                    <Text
+                      className="text-gray-500 mt-4 leading-5 font-bold text-xs"
+                      numberOfLines={2}
+                    >
+                      {creatorCommunity.description}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Instructor Reviews Section */}
           <View className="mt-12">

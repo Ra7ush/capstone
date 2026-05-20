@@ -94,7 +94,7 @@ export async function createCommunity(req, res, next) {
 export async function getDiscoverCommunities(req, res, next) {
   try {
     const userId = req.user?.id;
-    const { category, search } = req.query;
+    const { category, search, creator_id } = req.query;
 
     // Show both public and private communities in discover
     let query = supabase
@@ -108,6 +108,10 @@ export async function getDiscoverCommunities(req, res, next) {
       category !== "undefined";
     if (isValidCategory) {
       query = query.eq("category", category);
+    }
+
+    if (creator_id) {
+      query = query.eq("creator_id", creator_id);
     }
 
     if (search && search.trim() !== "") {

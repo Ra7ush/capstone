@@ -859,9 +859,10 @@ export function useJoinedCommunities() {
 export function useDiscoverCommunities(params?: {
   category?: string;
   search?: string;
+  creator_id?: string;
 }) {
   return useQuery<{ success: boolean; data: Community[] }>({
-    queryKey: ["communities", "discover", params?.category, params?.search],
+    queryKey: ["communities", "discover", params?.category, params?.search, params?.creator_id],
     queryFn: () => communityApi.getDiscoverCommunities(params),
     refetchInterval: 15000,
     refetchIntervalInBackground: true,

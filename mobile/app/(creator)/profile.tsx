@@ -156,6 +156,17 @@ export default function Profile() {
                     ? "text-green-500"
                     : undefined,
             },
+            {
+              icon: "sparkles-outline",
+              label: "Nexus Subscription",
+              route: "/subscription-upgrade",
+              value:
+                profile?.subscription_plan === "pro" ? "Pro Plan" : "Free Plan",
+              statusColor:
+                profile?.subscription_plan === "pro"
+                  ? "text-[#FF4D00]"
+                  : "text-gray-500",
+            },
           ],
         }
       : null;

@@ -71,15 +71,11 @@ export default function Profile() {
     {
       title: "Account",
       items: [
-        ...(profile?.role === "creator"
-          ? [
-              {
-                icon: "person-outline",
-                label: "Personal Information",
-                route: "/profile-edit?mode=full",
-              },
-            ]
-          : []),
+        {
+          icon: "person-outline",
+          label: "Personal Information",
+          route: "/profile-edit?mode=full",
+        },
       ],
     },
     {

@@ -140,6 +140,7 @@ export const communityApi = {
   getDiscoverCommunities: async (params?: {
     category?: string;
     search?: string;
+    creator_id?: string;
   }) => {
     const response = await api.get("/api/community/discover", {
       params,
