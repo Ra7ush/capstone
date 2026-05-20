@@ -15,6 +15,7 @@ import {
   Modal,
 } from "react-native";
 import { Stack, useRouter, useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -722,14 +723,18 @@ const DashboardHeader = React.memo(
     pendingCount,
     membersCount,
   }: DashboardHeaderProps) => {
-    const tabs = isPrivateCommunity
-      ? ["For You", "Requests", "Profile"]
-      : ["For You", "Profile"];
+      const tabs = isPrivateCommunity
+        ? ["For You", "Requests", "Profile"]
+        : ["For You", "Profile"];
+      const insets = useSafeAreaInsets();
 
-    return (
-      <>
-        <View className="px-6 pt-16 pb-4 bg-white border-b border-gray-100 flex-row items-center justify-between">
-          <View>
+      return (
+        <>
+          <View 
+            className="px-6 pb-4 bg-white border-b border-gray-100 flex-row items-center justify-between"
+            style={{ paddingTop: Math.max(insets.top, 20) + 12 }}
+          >
+            <View>
             <Text className="text-2xl font-black text-black">Community</Text>
           </View>
           <View className="flex-row gap-2 items-center">

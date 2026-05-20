@@ -16,6 +16,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useRef } from "react";
 import { useMessaging, useMessageRequests } from "../../hooks/useMessaging";
 import { usePresence } from "../../hooks/usePresence";
@@ -183,6 +184,7 @@ function SearchModal({
 
 export default function Message() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [search, setSearch] = useState("");
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const {
@@ -248,7 +250,10 @@ export default function Message() {
       <StatusBar style="dark" />
 
       {/* Header */}
-      <View className="px-5 pt-14 pb-2 bg-white flex-row items-center justify-between">
+      <View 
+        className="px-5 pb-2 bg-white flex-row items-center justify-between"
+        style={{ paddingTop: Math.max(insets.top, 20) + 12 }}
+      >
         <View className="flex-row items-center">
           <Text className="text-[22px] font-black text-black">Messages</Text>
         </View>

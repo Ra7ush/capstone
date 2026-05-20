@@ -11,6 +11,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInUp, FadeInRight } from "react-native-reanimated";
+import { useQueryClient } from "@tanstack/react-query";
 import { subscriptionApi } from "@/lib/api";
 
 const BENEFITS = [
@@ -58,6 +59,7 @@ const PRICING = {
 
 export default function SubscriptionUpgrade() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [isYearly, setIsYearly] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -78,6 +80,24 @@ export default function SubscriptionUpgrade() {
             try {
               setIsSubmitting(true);
               await subscriptionApi.updatePlan("pro");
+              
+              // Sync update cache for instant UI response before network kicks in!
+              queryClient.setQueryData(["services", "mine"], (oldData: any) => {
+                if (!oldData) return oldData;
+                return {
+                  ...oldData,
+                  meta: {
+                    ...oldData.meta,
+                    is_pro: true,
+                  },
+                };
+              });
+
+              // Kick off background validation anyway
+              queryClient.invalidateQueries({ queryKey: ["services", "mine"] });
+              queryClient.invalidateQueries({ queryKey: ["creators"] });
+              queryClient.invalidateQueries({ queryKey: ["users"] });
+              
               Alert.alert(
                 "Upgrade Complete",
                 "You're now on the Pro plan. Enjoy unlimited publishing!",

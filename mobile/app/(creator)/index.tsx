@@ -24,10 +24,12 @@ import { useAuthState } from "@/hooks/useAuthState";
 import { useUser } from "@/hooks/useProfile";
 import { useMyServices } from "@/hooks/useServices";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useMemo } from "react";
 
 export default function Home() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user: authUser, refresh: refreshAuth } = useAuthState();
   const {
     data: dbUser,
@@ -147,7 +149,10 @@ export default function Home() {
         <Stack.Screen options={{ headerShown: false }} />
         <StatusBar style="dark" />
 
-        <View className="px-6 pt-16 pb-8">
+        <View 
+          className="px-6 pb-8"
+          style={{ paddingTop: Math.max(insets.top, 20) + 12 }}
+        >
           {/* Header */}
           <View className="flex-row items-center justify-between mb-8">
             <View>
@@ -241,7 +246,7 @@ export default function Home() {
           )}
 
           {/* Upgrade Banner for Free Users */}
-          {!meta?.is_pro && !isLoadingUser && (
+          {profile?.subscription_plan !== "pro" && !isLoadingUser && (
             <TouchableOpacity
               onPress={() => router.push("/subscription-upgrade")}
               className="bg-[#FF4D00]/10 border border-[#FF4D00]/20 rounded-3xl p-5 mb-8 flex-row items-center justify-between"

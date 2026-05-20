@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import LoadingScreen from "@/components/LoadingScreen";
 import { AuthProvider } from "@/context/AuthContext";
 import { PresenceProvider } from "@/context/PresenceContext";
+import { StatusBar } from "expo-status-bar";
 
 // Suppress warnings from dependencies
 LogBox.ignoreLogs([
@@ -201,6 +202,7 @@ function RealtimeSync() {
                     ...oldDetails,
                     bio: record.bio,
                     verification_status: record.verification_status,
+                    subscription_plan: record.subscription_plan,
                   };
                 },
               );
@@ -364,6 +366,7 @@ export default function RootLayout() {
         <AuthGuard>
           <RealtimeSync />
           <PresenceProvider>
+            <StatusBar style="dark" />
             <Stack screenOptions={{ headerShown: false }} />
           </PresenceProvider>
         </AuthGuard>

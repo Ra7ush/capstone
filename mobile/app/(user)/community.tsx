@@ -14,6 +14,8 @@ import {
   FlatList,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect, useCallback } from "react";
@@ -52,6 +54,7 @@ const CATEGORIES = [
  * A single-screen experience to discover, join, and switch between communities.
  */
 export default function UserCommunity() {
+  const insets = useSafeAreaInsets();
   const [activeCommunityId, setActiveCommunityId] = useState<string | null>(
     null,
   );
@@ -749,7 +752,10 @@ export default function UserCommunity() {
 
       {/* 1. TOP SWITCHER (Discovery + Joined Avatars) */}
       {/* 1. TOP NAVIGATION (Discovery/Profile Tabs + Community Scroll) */}
-      <View className="pt-14 pb-4 px-6 bg-white border-b border-gray-50">
+      <View 
+        className="pb-4 px-6 bg-white border-b border-gray-50"
+        style={{ paddingTop: Math.max(insets.top, 20) + 12 }}
+      >
         {/* Main Tabs (Discover | Profile) */}
         <View className="flex-row items-center mb-6 gap-3">
           <TouchableOpacity

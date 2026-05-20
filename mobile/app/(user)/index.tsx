@@ -14,6 +14,7 @@ import { useState, useMemo } from "react";
 import { useUser } from "@/hooks/useProfile";
 import { useAuthState } from "@/hooks/useAuthState";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAllServices, usePurchasedServiceIds } from "@/hooks/useServices";
 import { useSuggestedCreators } from "@/hooks/useFollow";
 import { useJoinedCommunities, type Community } from "@/hooks/useCommunity";
@@ -32,6 +33,7 @@ import type { Service } from "@/types";
  */
 export default function UserHome() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user: authUser } = useAuthState();
   const { data: dbUser, refetch: refetchUser } = useUser();
   const profile = dbUser || authUser?.profile;
@@ -109,7 +111,10 @@ export default function UserHome() {
       <StatusBar style="dark" />
 
       {/* Header */}
-      <View className="flex-row items-center justify-between px-6 pt-14 pb-3">
+      <View 
+        className="flex-row items-center justify-between px-6 pb-3"
+        style={{ paddingTop: Math.max(insets.top, 20) + 12 }}
+      >
         <View className="flex-row items-center">
           <TouchableOpacity
             onPress={() => router.push("/(user)/profile")}

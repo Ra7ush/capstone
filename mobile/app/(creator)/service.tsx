@@ -11,6 +11,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useMemo } from "react";
 import { useMyServices } from "@/hooks/useServices";
 import { useUser } from "@/hooks/useProfile";
@@ -20,6 +21,7 @@ const STATUS_FILTERS = ["All", "Published", "Draft"];
 
 export default function ServiceTab() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { data: response, isLoading, isRefetching, refetch } = useMyServices();
   const { data: profile, isLoading: isLoadingProfile } = useUser();
   const services = response?.data;
@@ -120,7 +122,10 @@ export default function ServiceTab() {
       <StatusBar style="dark" />
 
       {/* Header */}
-      <View className="px-6 pt-16 pb-4 bg-white">
+      <View 
+        className="px-6 pb-4 bg-white"
+        style={{ paddingTop: Math.max(insets.top, 20) + 12 }}
+      >
         <View className="flex-row items-center justify-between mb-6">
           <View>
             <Text className="text-2xl font-black text-black">My Courses</Text>

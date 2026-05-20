@@ -64,6 +64,7 @@ export async function getProfile(req, res, next) {
       data.category = data.creators.category;
       data.average_rating = data.creators.average_rating;
       data.total_ratings = data.creators.total_ratings;
+      data.subscription_plan = data.creators.subscription_plan;
     }
 
     logger.debug(`[getProfile] Returning profile for id=${id}`);

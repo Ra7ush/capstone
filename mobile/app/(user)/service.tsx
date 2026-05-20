@@ -11,6 +11,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useMemo, useEffect } from "react";
 import { useAllServices, usePurchasedServiceIds } from "@/hooks/useServices";
 import { useAISmartSearch } from "@/hooks/useAI";
@@ -40,6 +41,7 @@ const CATEGORIES = [
  */
 export default function UserServices() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -205,7 +207,10 @@ export default function UserServices() {
       <StatusBar style="dark" />
 
       {/* Header */}
-      <View className="px-5 pt-14 pb-4 bg-white">
+      <View 
+        className="px-5 pb-4 bg-white"
+        style={{ paddingTop: Math.max(insets.top, 20) + 12 }}
+      >
         <Text className="text-2xl font-black text-black">Explore</Text>
         <Text className="text-gray-400 mt-1">
           Discover courses from top creators

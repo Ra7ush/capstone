@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { supabase } from "@/lib/supabase";
@@ -23,6 +24,7 @@ import { usePurchasedServiceIds } from "@/hooks/useServices";
 
 export default function Profile() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { user: authUser, refresh: refreshAuth } = useAuthState();
   const insets = useSafeAreaInsets();
   const {
@@ -150,7 +152,8 @@ export default function Profile() {
 
   return (
     <View className="flex-1 bg-white">
-      <StatusBar style="light" />
+      <Stack.Screen options={{ headerShown: false }} />
+      {isFocused && <StatusBar style="light" />}
 
       <ScrollView
         className="flex-1"
