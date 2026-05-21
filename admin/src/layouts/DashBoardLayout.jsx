@@ -9,7 +9,6 @@ import {
   Settings,
   LogOut,
   Search,
-  Bell,
   ChevronRight,
   Menu,
   ShieldCheck,
@@ -123,11 +122,6 @@ function DashBoardLayout() {
           </div>
 
           <div className="flex-none gap-4 items-center">
-            <button className="btn btn-ghost btn-circle text-gray-500 relative">
-              <Bell size={22} />
-              <span className="badge badge-error badge-xs absolute top-2 right-2 border-none"></span>
-            </button>
-
             <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100 hidden sm:flex">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
               <span className="text-[10px] font-black text-gray-800 uppercase tracking-tighter">

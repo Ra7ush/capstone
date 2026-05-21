@@ -161,6 +161,7 @@ export default function Onboarding() {
           {
             user_id: userId,
             bio: bio.trim() || null,
+            verification_status: null,
           },
           { onConflict: "user_id" },
         );
@@ -177,7 +178,7 @@ export default function Onboarding() {
           {
             text: isCreator ? "Start Verification" : "Let's Go!",
             onPress: () =>
-              router.replace(isCreator ? "/verification-apply" : "/(tabs)"),
+              router.replace(isCreator ? "/verification-apply" : "/(user)"),
           },
         ],
       );

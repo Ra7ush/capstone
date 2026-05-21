@@ -47,7 +47,6 @@ export default function Profile() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.replace("/(auth)/login");
   };
 
   const onRefresh = async () => {
@@ -68,16 +67,6 @@ export default function Profile() {
   }
 
   const sections: { title: string; items: SectionItem[] }[] = [
-    {
-      title: "Account",
-      items: [
-        {
-          icon: "person-outline",
-          label: "Personal Information",
-          route: "/profile-edit?mode=full",
-        },
-      ],
-    },
     {
       title: "Settings",
       items: [

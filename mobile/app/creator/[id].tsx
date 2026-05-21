@@ -63,7 +63,10 @@ export default function CreatorProfile() {
   // Community Hooks
   const { data: discoverData, isLoading: isLoadingCommunity } =
     useDiscoverCommunities({ creator_id: id });
-  const creatorCommunity = discoverData?.data?.[0]; // Assume 1 main community per creator
+  // STRICT FILTER: Prevent caching/backend-delay mismatches from rendering another creator's community
+  const creatorCommunity = discoverData?.data?.find(
+    (c) => c.creator_id === id
+  );
   const { joinCommunity } = useCommunity();
   const requestToJoin = useRequestToJoin();
 
@@ -395,7 +398,11 @@ export default function CreatorProfile() {
                   if (!creatorCommunity.is_joined) {
                     handleJoinCommunity(creatorCommunity);
                   } else {
-                    router.navigate("/(user)/community"); // Redirect to communities tab
+                    // Navigate directly into this specific community
+                    router.navigate({
+                      pathname: "/(user)/community",
+                      params: { communityId: creatorCommunity.id },
+                    });
                   }
                 }}
                 className="bg-white rounded-[32px] overflow-hidden border border-gray-100 shadow-sm"

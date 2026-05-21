@@ -13,7 +13,7 @@ import {
   Modal,
   FlatList,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { StatusBar } from "expo-status-bar";
@@ -55,9 +55,17 @@ const CATEGORIES = [
  */
 export default function UserCommunity() {
   const insets = useSafeAreaInsets();
+  const { communityId: paramCommunityId } = useLocalSearchParams<{ communityId?: string }>();
   const [activeCommunityId, setActiveCommunityId] = useState<string | null>(
-    null,
+    paramCommunityId || null,
   );
+
+  // Auto-open community when navigated with a deep-link param
+  useEffect(() => {
+    if (paramCommunityId && paramCommunityId !== activeCommunityId) {
+      setActiveCommunityId(paramCommunityId);
+    }
+  }, [paramCommunityId]);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");

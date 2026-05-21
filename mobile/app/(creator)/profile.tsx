@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  Alert,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -65,7 +66,6 @@ export default function Profile() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.replace("/(auth)/login");
   };
 
   const onRefresh = async () => {
@@ -85,9 +85,10 @@ export default function Profile() {
   interface SectionItem {
     icon: string;
     label: string;
-    route: string;
+    route?: string;
     value?: string;
     statusColor?: string;
+    onPress?: () => void;
   }
 
   const sections: { title: string; items: SectionItem[] }[] = [
@@ -142,19 +143,39 @@ export default function Profile() {
             {
               icon: "shield-checkmark-outline",
               label: "Verification Status",
-              route: "/verification-apply",
               value:
                 profile?.verification_status === "pending"
                   ? "Under Review"
                   : profile?.verification_status === "verified"
                     ? "Verified"
-                    : undefined,
+                    : profile?.verification_status === "rejected"
+                      ? "Rejected"
+                      : "Not Started",
               statusColor:
                 profile?.verification_status === "pending"
                   ? "text-yellow-500"
                   : profile?.verification_status === "verified"
                     ? "text-green-500"
-                    : undefined,
+                    : profile?.verification_status === "rejected"
+                      ? "text-red-500"
+                      : "text-gray-400",
+              onPress: () => {
+                if (profile?.verification_status === "rejected") {
+                  Alert.alert(
+                    "Verification Rejected",
+                    "Your previous identity verification was rejected. Do you want to submit a new application?",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Yes, Resubmit",
+                        onPress: () => router.push("/verification-apply"),
+                      },
+                    ]
+                  );
+                } else {
+                  router.push("/verification-apply");
+                }
+              },
             },
             {
               icon: "sparkles-outline",
@@ -282,7 +303,13 @@ export default function Profile() {
                 {section.items.map((item, itemIdx) => (
                   <TouchableOpacity
                     key={itemIdx}
-                    onPress={() => router.push(item.route as any)}
+                    onPress={() => {
+                      if (item.onPress) {
+                        item.onPress();
+                      } else if (item.route) {
+                        router.push(item.route as any);
+                      }
+                    }}
                     className={`bg-white rounded-[2rem] p-4 flex-row items-center mb-1 ${
                       itemIdx === section.items.length - 1 ? "mb-0" : ""
                     }`}

@@ -191,8 +191,18 @@ export async function updateRequestStatus(req, res, next) {
       });
     }
 
-    // 2. If verified, the trigger `tr_on_verification_approval` (defined in SQL)
-    // will automatically update the `creators` table status.
+    // 2. Explicitly update the creators table verification status
+    const { error: creatorUpdateError } = await supabase
+      .from("creators")
+      .update({ 
+         verification_status: status,
+         ...(status === "verified" ? { verified_at: new Date().toISOString() } : {})
+      })
+      .eq("user_id", request.user_id);
+      
+    if (creatorUpdateError) {
+      console.error("Failed to update creator status:", creatorUpdateError);
+    }
 
     res.status(200).json({
       success: true,

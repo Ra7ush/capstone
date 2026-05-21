@@ -130,7 +130,6 @@ export default function Home() {
   // Need to remove later.
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.replace("/(auth)/login");
   };
 
   const isVerified = profile?.verification_status === "verified";
