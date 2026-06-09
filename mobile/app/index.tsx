@@ -13,13 +13,18 @@ export default function Index() {
     return <LoadingScreen />;
   }
 
-  // If user is fully authenticated, redirect based on role
+  // If user is fully authenticated and has a profile, redirect based on role
   if (session && hasProfile) {
     const userRole = user?.profile?.role || "user";
     if (userRole === "creator") {
       return <Redirect href="/(creator)" />;
     }
     return <Redirect href="/(user)" />;
+  }
+
+  // If user is authenticated but DOES NOT have a profile, force onboarding
+  if (session && !hasProfile) {
+    return <Redirect href="/onboarding" />;
   }
 
   // Otherwise show the welcome/landing page

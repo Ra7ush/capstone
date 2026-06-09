@@ -13,6 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { communityApi } from "@/lib/api";
 import { clearAllMessageCaches } from "@/lib/messageCache";
 import * as Linking from "expo-linking";
+import { router as expoRouter } from "expo-router";
 
 const PENDING_EMAIL_KEY = "@pending_verification_email";
 
@@ -152,12 +153,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const params = new URLSearchParams(fragment);
       const access_token = params.get("access_token");
       const refresh_token = params.get("refresh_token");
+      const type = params.get("type");
 
       if (access_token && refresh_token) {
         await supabase.auth.setSession({
           access_token,
           refresh_token,
         });
+
+        // If this is a password recovery link, navigate to reset password screen
+        if (type === "recovery") {
+          setTimeout(() => {
+            expoRouter.replace("/(auth)/reset-password");
+          }, 300);
+        }
       }
     }
   };
@@ -183,10 +192,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event) => {
       console.log("Auth Provider Event:", event);
-      if (
+      if (event === "PASSWORD_RECOVERY") {
+        // User clicked the password reset link from email — navigate to reset screen
+        setTimeout(() => {
+          expoRouter.replace("/(auth)/reset-password");
+        }, 300);
+      } else if (
         event === "SIGNED_IN" ||
-        event === "TOKEN_REFRESHED" ||
-        event === "USER_UPDATED"
+        event === "TOKEN_REFRESHED"
       ) {
         await checkAuthState(false); // Don't trigger full loading UI for background refreshes
       } else if (event === "SIGNED_OUT") {

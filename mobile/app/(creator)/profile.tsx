@@ -66,6 +66,7 @@ export default function Profile() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    router.replace("/(auth)/login");
   };
 
   const onRefresh = async () => {

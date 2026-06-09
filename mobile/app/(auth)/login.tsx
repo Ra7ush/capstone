@@ -171,6 +171,17 @@ export default function Login() {
               />
             </View>
           </View>
+
+          {/* Forgot Password */}
+          <View className="items-end mt-3">
+            <Link href="/(auth)/forgot-password" asChild>
+              <TouchableOpacity>
+                <Text className="text-[#FF4D00] font-black text-[11px] uppercase tracking-wider">
+                  Forgot Password?
+                </Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
         </View>
 
         {/* Action Button */}
