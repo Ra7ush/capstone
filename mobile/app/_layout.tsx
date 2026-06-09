@@ -1,6 +1,6 @@
 import React from "react";
 import "../global.css";
-import { Slot } from "expo-router";
+import { Stack } from "expo-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "@/context/AuthContext";
@@ -21,7 +21,7 @@ export default function RootLayout() {
       <AuthProvider>
         <PresenceProvider>
           <SafeAreaProvider>
-            <Slot />
+            <Stack screenOptions={{ headerShown: false }} />
           </SafeAreaProvider>
         </PresenceProvider>
       </AuthProvider>
