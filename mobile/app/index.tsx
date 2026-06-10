@@ -8,6 +8,13 @@ import LoadingScreen from "../components/LoadingScreen";
 export default function Index() {
   const { isLoading, session, hasProfile, user } = useAuthState();
 
+  console.log("=== ROOT ROUTER STATE ===");
+  console.log("isLoading:", isLoading);
+  console.log("session:", !!session);
+  console.log("hasProfile:", hasProfile);
+  console.log("user role:", user?.profile?.role);
+  console.log("=========================");
+
   // Show loading while checking auth
   if (isLoading) {
     return <LoadingScreen />;
@@ -16,6 +23,7 @@ export default function Index() {
   // If user is fully authenticated and has a profile, redirect based on role
   if (session && hasProfile) {
     const userRole = user?.profile?.role || "user";
+    console.log("Redirecting to role:", userRole);
     if (userRole === "creator") {
       return <Redirect href="/(creator)" />;
     }
@@ -24,8 +32,11 @@ export default function Index() {
 
   // If user is authenticated but DOES NOT have a profile, force onboarding
   if (session && !hasProfile) {
+    console.log("Redirecting to onboarding...");
     return <Redirect href="/onboarding" />;
   }
+
+  console.log("Showing Welcome Screen...");
 
   // Otherwise show the welcome/landing page
   return (

@@ -81,7 +81,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let creatorCommunityId: string | null = null;
 
       if (isEmailVerified) {
-        const { data: profile } = await supabase
+        // Catch errors explicitly here instead of throwing to the outer try/catch
+        // which would abort the entire session update!
+        const { data: profile, error: profileError } = await supabase
           .from("users")
           .select(
             "*, creators(verification_status, bio, social_links, portfolio_url)",
@@ -89,8 +91,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq("id", user.id)
           .single();
 
+        if (profileError && profileError.code !== "PGRST116") {
+          console.error("Error fetching profile:", profileError);
+        }
+
         if (profile) {
-          hasProfile = true;
+          // STRICT RULE: Even if a database trigger automatically created a row for this
+          // brand new Google User, DO NOT skip onboarding unless they actually finished it
+          // and defined a username.
+          if (profile.username) {
+            hasProfile = true;
+          }
+          
           userProfile = {
             ...profile,
             bio: profile.creators?.bio,
@@ -197,11 +209,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setTimeout(() => {
           expoRouter.replace("/(auth)/reset-password");
         }, 300);
-      } else if (
-        event === "SIGNED_IN" ||
-        event === "TOKEN_REFRESHED"
-      ) {
-        await checkAuthState(false); // Don't trigger full loading UI for background refreshes
+      } else if (event === "SIGNED_IN") {
+        // Crucial Fix: DO NOT await this call to prevent deadlock.
+        // We pass TRUE here so the router displays a clean Loading Screen
+        // while the profile mathematically parses, rather than flashing the Welcome/Get Started screen.
+        checkAuthState(true).catch(console.error);
+      } else if (event === "TOKEN_REFRESHED") {
+        // We pass FALSE here so background background token refreshes don't randomly interrupt the user 
+        // with a Loading Screen while they are busy inside the app.
+        checkAuthState(false).catch(console.error);
       } else if (event === "SIGNED_OUT") {
         setState({
           isLoading: false,

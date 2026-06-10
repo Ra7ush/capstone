@@ -12,8 +12,8 @@ import {
 import { Stack, useRouter, Link } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { makeRedirectUri } from "expo-auth-session";
-import { openAuthSessionAsync } from "expo-web-browser";
+import * as WebBrowser from "expo-web-browser";
+import * as QueryParams from "expo-auth-session/build/QueryParams";
 
 export default function Login() {
   const router = useRouter();
@@ -49,39 +49,78 @@ export default function Login() {
 
   const handleGoogleLogin = async () => {
     try {
-      const redirectUrl = makeRedirectUri({
-        scheme: "mobile",
-        path: "auth/callback",
-      });
+      // mobile:// scheme is registered in app.json and whitelisted in Supabase as mobile://**
+      // openAuthSessionAsync internally intercepts this scheme via ASWebAuthenticationSession
+      const redirectUrl = "mobile://auth/callback";
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: redirectUrl,
           skipBrowserRedirect: true,
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
 
       if (error) throw error;
 
       if (data?.url) {
-        const result = await openAuthSessionAsync(data.url, redirectUrl);
-        if (result.type === "success" && result.url) {
-          const url = new URL(result.url);
-          const params = new URLSearchParams(url.hash.substring(1));
-          const accessToken = params.get("access_token");
-          const refreshToken = params.get("refresh_token");
-          if (accessToken && refreshToken) {
-            const { error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            if (error) throw error;
-            router.replace("/");
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          redirectUrl
+        );
+
+        console.log("=== GOOGLE AUTH DEBUG ===");
+        console.log("Result type:", result.type);
+
+        if (result.type === "success") {
+          console.log("Result URL:", result.url);
+
+          const hashPart = result.url.split("#")[1];
+          console.log("Hash part:", hashPart ? "found" : "missing");
+
+          if (hashPart) {
+            const { params, errorCode } = QueryParams.getQueryParams(
+              "?" + hashPart
+            );
+
+            console.log("Parsed params keys:", Object.keys(params));
+            console.log("Error code:", errorCode);
+
+            if (errorCode) throw new Error(errorCode);
+
+            const { access_token, refresh_token } = params;
+            console.log("Access token:", access_token ? "present" : "missing");
+            console.log("Refresh token:", refresh_token ? "present" : "missing");
+
+            if (access_token && refresh_token) {
+              const { error: sessionError } = await supabase.auth.setSession({
+                access_token,
+                refresh_token,
+              });
+
+              if (sessionError) {
+                console.log("Session error:", sessionError.message);
+                throw sessionError;
+              }
+
+              console.log("Session set successfully! Navigating...");
+              router.replace("/");
+            } else {
+              Alert.alert("Error", "Missing tokens in Google response.");
+            }
+          } else {
+            Alert.alert("Error", "No authentication data received.");
           }
+        } else if (result.type === "cancel" || result.type === "dismiss") {
+          console.log("User cancelled/dismissed the auth flow");
         }
+        console.log("=== END DEBUG ===");
       }
     } catch (error: any) {
+      console.error("Google Auth Error:", error);
       Alert.alert("Google Auth Failed", error.message);
     }
   };

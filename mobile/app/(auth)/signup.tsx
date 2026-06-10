@@ -12,8 +12,8 @@ import {
 import { Stack, useRouter, Link } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { makeRedirectUri } from "expo-auth-session";
-import { openAuthSessionAsync } from "expo-web-browser";
+import * as WebBrowser from "expo-web-browser";
+import * as QueryParams from "expo-auth-session/build/QueryParams";
 import { mmkvStorage } from "@/lib/storage";
 import { STORAGE_KEYS } from "@/constants";
 
@@ -69,40 +69,59 @@ export default function Signup() {
 
   const handleGoogleSignup = async () => {
     try {
-      const redirectUrl = makeRedirectUri({
-        scheme: "mobile",
-        path: "auth/callback",
-      });
+      const redirectUrl = "mobile://auth/callback";
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: redirectUrl,
           skipBrowserRedirect: true,
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
 
       if (error) throw error;
 
       if (data?.url) {
-        const result = await openAuthSessionAsync(data.url, redirectUrl);
-        if (result.type === "success" && result.url) {
-          // Parse tokens from the callback URL
-          const url = new URL(result.url);
-          const params = new URLSearchParams(url.hash.substring(1));
-          const accessToken = params.get("access_token");
-          const refreshToken = params.get("refresh_token");
-          if (accessToken && refreshToken) {
-            const { error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            if (error) throw error;
-            router.replace("/");
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          redirectUrl
+        );
+
+        console.log("Google Signup Result:", result.type);
+
+        if (result.type === "success") {
+          const hashPart = result.url.split("#")[1];
+
+          if (hashPart) {
+            const { params, errorCode } = QueryParams.getQueryParams(
+              "?" + hashPart
+            );
+
+            if (errorCode) throw new Error(errorCode);
+
+            const { access_token, refresh_token } = params;
+
+            if (access_token && refresh_token) {
+              const { error: sessionError } = await supabase.auth.setSession({
+                access_token,
+                refresh_token,
+              });
+
+              if (sessionError) throw sessionError;
+              router.replace("/");
+            } else {
+              Alert.alert("Error", "Missing tokens in Google response.");
+            }
+          } else {
+            Alert.alert("Error", "No authentication data received.");
           }
         }
       }
     } catch (error: any) {
+      console.error("Google Signup Error:", error);
       Alert.alert("Google Auth Failed", error.message);
     }
   };
