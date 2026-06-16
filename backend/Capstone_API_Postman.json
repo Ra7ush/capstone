@@ -1,0 +1,934 @@
+{
+  "info": {
+    "name": "Capstone API - All Routes",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "apikey",
+            "value": "{{supabase_anon_key}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{supabase_url}}/auth/v1/token?grant_type=password",
+          "host": [
+            "{{supabase_url}}"
+          ],
+          "path": [
+            "auth",
+            "v1",
+            "token?grant_type=password"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"YOUR_EMAIL\",\"password\":\"YOUR_PASSWORD\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var j=pm.response.json();if(j.access_token){pm.collectionVariables.set('auth_token',j.access_token);pm.collectionVariables.set('user_id',j.user.id);}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Verify",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/admin/verify",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "verify"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin - Dashboard Stats",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/admin/dashboard/stats?range=1Y",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "dashboard",
+            "stats?range=1Y"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin - System Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/admin/system/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "system",
+            "health"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin - Get All Users",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/admin/users",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "users"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin - Update User",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/admin/users/{{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "users",
+            "{{user_id}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"status\":\"active\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin - Get Payouts",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/admin/payouts",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "payouts"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin - Payouts History",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/admin/payouts/history",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "payouts",
+            "history"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin - Get Moderations",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/admin/moderations",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "moderations"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin - Pending Verifications",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/admin/verifications/pending",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "verifications",
+            "pending"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Profile - Get My Profile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/profile",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "profile"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Profile - Get User By ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/profile/user/{{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "profile",
+            "user",
+            "{{user_id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Profile - Get User Posts",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/profile/user/{{user_id}}/posts",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "profile",
+            "user",
+            "{{user_id}}",
+            "posts"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Profile - Search",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/profile/search?q=test",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "profile",
+            "search?q=test"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Profile - Get Notifications",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/profile/notifications/list",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "profile",
+            "notifications",
+            "list"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Profile - Update Profile",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/profile/user/{{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "profile",
+            "user",
+            "{{user_id}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"full_name\":\"Test User\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Community - Get Discover",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/community/discover",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "community",
+            "discover"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Community - Get Joined",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/community/joined",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "community",
+            "joined"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Community - Get Feed",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/community/posts/feed",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "community",
+            "posts",
+            "feed"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Community - Create Post",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/community/posts",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "community",
+            "posts"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"content\":\"Test post\",\"community_id\":\"REPLACE_ID\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Follow - Suggested Creators",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/follow/suggested",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "follow",
+            "suggested"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Follow - Get Followers",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/follow/followers/{{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "follow",
+            "followers",
+            "{{user_id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Follow - Get Following",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/follow/following/{{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "follow",
+            "following",
+            "{{user_id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Creator - Verification Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/creator/verification-status",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "creator",
+            "verification-status"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Creator - Get Profile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/creator/profile/{{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "creator",
+            "profile",
+            "{{user_id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Creator - Get Stats",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/creator/stats/{{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "creator",
+            "stats",
+            "{{user_id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Creator - Get Activity",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/creator/activity",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "creator",
+            "activity"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Service - Get All",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/service",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "service"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Service - Get Mine",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/service/mine",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "service",
+            "mine"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Message - Get Conversations",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/message",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "message"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Message - Get Requests",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/message/requests",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "message",
+            "requests"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Message - Requests Count",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/message/requests/count",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "message",
+            "requests",
+            "count"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Purchase - Get Purchases",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/purchase",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "purchase"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Subscription - Get Plans",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/subscription/plans",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscription",
+            "plans"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Subscription - My Subscription",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/subscription/me",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscription",
+            "me"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Block - Get Blocked Users",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/block/list",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "block",
+            "list"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Notifications - Get All",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/notifications",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "notifications"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Notifications - Unread Count",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/notifications/unread-count",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "notifications",
+            "unread-count"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Reviews - Create Review",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/reviews",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "reviews"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"service_id\":\"REPLACE_ID\",\"rating\":5,\"comment\":\"Great!\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Moderation - Submit Report",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/moderation/report",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "moderation",
+            "report"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"reported_id\":\"REPLACE_ID\",\"reason\":\"spam\",\"type\":\"user\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "AI - Recommendations",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/ai/recommendations",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "ai",
+            "recommendations"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "AI - Chat Tutor",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/ai/chat",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "ai",
+            "chat"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"message\":\"What is JavaScript?\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "AI - Smart Search",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/ai/smart-search",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "ai",
+            "smart-search"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"web development\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api"
+    },
+    {
+      "key": "supabase_url",
+      "value": "https://qzwnfcbgedtqadbixxhj.supabase.co"
+    },
+    {
+      "key": "supabase_anon_key",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF6d25mY2JnZWR0cWFkYml4eGhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjczODI5MTMsImV4cCI6MjA4Mjk1ODkxM30.2XnOvVfx4QNjw3A5T9uSYWc_MnlR8N0uOYKp4FCLYVE"
+    },
+    {
+      "key": "auth_token",
+      "value": ""
+    },
+    {
+      "key": "user_id",
+      "value": ""
+    }
+  ]
+}
