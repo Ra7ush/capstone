@@ -4,7 +4,7 @@ import { logger } from "../config/logger.js";
 
 export async function getProfile(req, res, next) {
   try {
-    const { id } = req.params;
+    const id = req.params.id || req.user?.id;
     const currentUserId = req.user?.id;
     const cacheKey = `profile:${id}`;
     logger.debug(`[getProfile] id=${id} cacheKey=${cacheKey}`);

@@ -20,6 +20,7 @@ router.put("/notifications/:id", markNotificationAsRead);
 router.get("/search", searchProfiles);
 
 // Wildcard routes last
+router.get("/", getProfile);
 router.get("/user/:id", getProfile);
 router.get("/user/:id/posts", getUserPosts);
 router.put("/user/:id", updateProfile);
